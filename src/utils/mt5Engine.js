@@ -9,19 +9,20 @@
  * Uses the "Positions" table as primary source (closed trades with PnL).
  * Falls back to "Deals" table if Positions is unavailable.
  */
-export function parseMT5Report(htmlString) {
+export function parseMT5Report(htmlString, timezoneOffsetHours = 2) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString, 'text/html');
 
   // Extract account metadata from header rows
   const meta = extractMetadata(doc);
+  meta.timezoneOffset = timezoneOffsetHours;
 
   // Try Positions table first — it has clean open/close per row
-  let trades = parsePositionsTable(doc);
+  let trades = parsePositionsTable(doc, timezoneOffsetHours);
 
   // Fallback: parse Deals table and pair in/out deals
   if (trades.length === 0) {
-    trades = parseDealsTable(doc);
+    trades = parseDealsTable(doc, timezoneOffsetHours);
   }
 
   // Parse summary statistics from the Results section
@@ -56,7 +57,7 @@ function extractMetadata(doc) {
   return meta;
 }
 
-function parsePositionsTable(doc) {
+function parsePositionsTable(doc, tzOffset = 2) {
   const trades = [];
 
   // Find the section header "Positions"
@@ -126,8 +127,8 @@ function parsePositionsTable(doc) {
 
     if (!openTimeStr || !symbol) continue;
 
-    const openTime = parseMT5Date(openTimeStr);
-    const closeTime = parseMT5Date(closeTimeStr);
+    const openTime = parseMT5Date(openTimeStr, tzOffset);
+    const closeTime = parseMT5Date(closeTimeStr, tzOffset);
     const durationMs = closeTime && openTime ? closeTime - openTime : 0;
     const durationMin = durationMs / 60000;
 
@@ -156,7 +157,7 @@ function parsePositionsTable(doc) {
   return trades;
 }
 
-function parseDealsTable(doc) {
+function parseDealsTable(doc, tzOffset = 2) {
   const trades = [];
   const headers = doc.querySelectorAll('th, td');
   let dealsSection = null;
@@ -234,8 +235,8 @@ function parseDealsTable(doc) {
       const matchIdx = openDeals.findIndex(d => d.symbol === deal.symbol);
       if (matchIdx !== -1) {
         const open = openDeals.splice(matchIdx, 1)[0];
-        const openTime = parseMT5Date(open.time);
-        const closeTime = parseMT5Date(deal.time);
+        const openTime = parseMT5Date(open.time, tzOffset);
+        const closeTime = parseMT5Date(deal.time, tzOffset);
         const durationMs = closeTime && openTime ? closeTime - openTime : 0;
 
         trades.push({
@@ -305,12 +306,17 @@ function parseNum(str) {
   return isNaN(num) ? 0 : num;
 }
 
-function parseMT5Date(str) {
+function parseMT5Date(str, tzOffset = 2) {
   if (!str) return null;
-  // Format: "2026.04.03 07:22:50"
-  const cleaned = str.replace(/\./g, '-');
-  const d = new Date(cleaned);
-  return isNaN(d.getTime()) ? null : d;
+  // Format: "2026.04.03 07:22:50" — treat as the broker's local time (UTC+tzOffset)
+  // We parse it as UTC first, then subtract the offset to convert to actual UTC
+  const cleaned = str.trim().replace(/\./g, '-');
+  // Append 'Z' temporarily to parse as UTC, then shift
+  const d = new Date(cleaned + 'Z');
+  if (isNaN(d.getTime())) return null;
+  // Shift: broker timestamps are in UTC+tzOffset, so subtract tzOffset hours to get UTC
+  const offsetMs = tzOffset * 60 * 60 * 1000;
+  return new Date(d.getTime() - offsetMs);
 }
 
 function formatDateKey(d) {
@@ -803,6 +809,223 @@ function generateRecommendations(data) {
 }
 
 // ── EXPORT REPORT GENERATION ────────────────────────────────────────────────
+
+export function generateHtmlReport(trades, metrics, meta) {
+  const g = '#22c55e';
+  const r = '#f43f5e';
+  const fmtPnl = (v, prefix = '$') => `${v >= 0 ? '+' : ''}${prefix}${Math.abs(v).toFixed(2)}`;
+  const fmtDate = (d) => d ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  const fmtDur = (m) => m < 60 ? `${Math.round(m)}m` : `${Math.floor(m/60)}h ${Math.round(m%60)}m`;
+
+  // Equity curve mini SVG sparkline
+  const curve = metrics.equityCurve;
+  let sparkSvg = '';
+  if (curve.length > 1) {
+    const vals = curve.map(p => p.balance);
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    const range = mx - mn || 1;
+    const W = 400, H = 80;
+    const pts = vals.map((v, i) => {
+      const x = (i / (vals.length - 1)) * W;
+      const y = H - ((v - mn) / range) * H;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    sparkSvg = `<svg width="100%" height="80" viewBox="0 0 400 80" preserveAspectRatio="none" style="display:block">
+      <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${g}" stop-opacity="0.3"/><stop offset="100%" stop-color="${g}" stop-opacity="0"/></linearGradient></defs>
+      <polygon points="0,${H} ${pts} ${W},${H}" fill="url(#sg)"/>
+      <polyline points="${pts}" fill="none" stroke="${g}" stroke-width="2"/>
+    </svg>`;
+  }
+
+  const gradeColor = { S: '#a855f7', A: g, B: '#3b82f6', C: '#f59e0b', F: r }[metrics.accountGrade.grade] || '#fff';
+
+  const assetRows = metrics.assetPnL.map(a => {
+    const wr = a.count ? ((a.wins / a.count) * 100).toFixed(0) : 0;
+    const isPos = a.totalPnL >= 0;
+    return `<tr>
+      <td style="font-weight:600;color:#f0f0ee">${a.symbol}</td>
+      <td style="text-align:center;color:#9ca3af">${a.count}</td>
+      <td style="text-align:center;color:${isPos ? g : r}">${wr}%</td>
+      <td style="text-align:right;font-weight:700;color:${isPos ? g : r}">${fmtPnl(a.totalPnL)}</td>
+    </tr>`;
+  }).join('');
+
+  const dayRows = metrics.dailyPnL.map(d => {
+    const wr = d.count ? ((d.wins / d.count) * 100).toFixed(0) : 0;
+    const avg = d.count ? d.totalPnL / d.count : 0;
+    const isPos = d.totalPnL >= 0;
+    return `<tr>
+      <td style="font-weight:600;color:#f0f0ee">${d.name}</td>
+      <td style="text-align:center;color:#9ca3af">${d.count}</td>
+      <td style="text-align:center;color:${isPos ? g : r}">${wr}%</td>
+      <td style="text-align:right;font-weight:700;color:${isPos ? g : r}">${fmtPnl(d.totalPnL)}</td>
+      <td style="text-align:right;color:${avg >= 0 ? g : r}">${fmtPnl(avg)}</td>
+    </tr>`;
+  }).join('');
+
+  const tradeRows = trades.slice(0, 200).map((t, i) => {
+    const isPos = t.profit >= 0;
+    return `<tr style="background:${i % 2 === 0 ? '#0d0f11' : '#111316'}">
+      <td style="color:#9ca3af;font-family:monospace">${fmtDate(t.openTime)}</td>
+      <td style="font-weight:600;color:#f0f0ee">${t.symbol}</td>
+      <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${t.type==='buy'?'rgba(22,163,74,0.15)':'rgba(244,63,94,0.15)'};color:${t.type==='buy'?'#4ade80':'#fb7185'};border:1px solid ${t.type==='buy'?'rgba(22,163,74,0.3)':'rgba(244,63,94,0.3)'}">${t.type.toUpperCase()}</span></td>
+      <td style="text-align:center;color:#9ca3af;font-family:monospace">${t.volume}</td>
+      <td style="text-align:right;color:#9ca3af;font-family:monospace">${t.openPrice?.toFixed(5)}</td>
+      <td style="text-align:right;color:#9ca3af;font-family:monospace">${t.closePrice?.toFixed(5)}</td>
+      <td style="text-align:right;color:#9ca3af;font-family:monospace">${fmtDur(t.durationMin)}</td>
+      <td style="text-align:right;font-weight:700;font-family:monospace;color:${isPos ? g : r}">${fmtPnl(t.profit)}</td>
+    </tr>`;
+  }).join('');
+
+  const recHtml = metrics.recommendations.map(rec => {
+    const border = rec.severity === 'critical' ? r : rec.severity === 'positive' ? g : rec.severity === 'warning' ? '#f59e0b' : '#636870';
+    return `<div style="display:flex;gap:10px;padding:12px 14px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-left:3px solid ${border};margin-bottom:8px">
+      <span style="font-size:1rem;flex-shrink:0">${rec.icon}</span>
+      <p style="color:#c8cad0;font-size:13px;line-height:1.6;margin:0">${rec.message}</p>
+    </div>`;
+  }).join('');
+
+  const leakHtml = metrics.leakage.length > 0 ? `
+    <section style="margin-bottom:32px">
+      <h2 style="font-family:monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#7a7f8a;margin-bottom:16px">⚠ Profit Leakage Detected</h2>
+      ${metrics.leakage.map(l => `<div style="padding:12px 14px;border-radius:8px;background:rgba(244,63,94,0.05);border:1px solid rgba(244,63,94,0.2);margin-bottom:8px;color:#c8cad0;font-size:13px">${l.message}</div>`).join('')}
+    </section>` : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MT5 Analytics Report — ${meta.name || 'Account'}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Inter, system-ui, sans-serif; background: #0a0a0a; color: #c8cad0; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  a { color: ${g}; }
+  h2 { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #7a7f8a; margin-bottom: 16px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .kpi { background: #141618; border: 1px solid #242729; border-radius: 10px; padding: 16px; }
+  .kpi-label { font-family: monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #7a7f8a; margin-bottom: 8px; }
+  .kpi-val { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; color: #f0f0ee; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { font-family: monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #7a7f8a; padding: 10px 12px; text-align: left; border-bottom: 1px solid #242729; }
+  td { padding: 10px 12px; border-bottom: 1px solid #1a1c1f; }
+  tr:last-child td { border-bottom: none; }
+  .section { background: #141618; border: 1px solid #242729; border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+  .section-header { padding: 14px 20px; border-bottom: 1px solid #1a1c1f; background: rgba(255,255,255,0.015); font-family: monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #f0f0ee; font-weight: 500; }
+  .section-body { padding: 20px; }
+  @media print { body { background: #fff; color: #000; } .section { border: 1px solid #ccc; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:36px;padding-bottom:24px;border-bottom:1px solid #242729">
+    <div>
+      <div style="font-family:monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#7a7f8a;margin-bottom:8px">MT5 ANALYTICS REPORT</div>
+      <h1 style="font-size:clamp(1.5rem,3vw,2rem);font-weight:700;letter-spacing:-0.03em;color:#f0f0ee;margin-bottom:6px">${meta.name || 'Trading Account'}</h1>
+      <p style="color:#9ca3af;font-size:13px">${meta.account} · ${meta.company} · Generated ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+      ${meta.timezoneOffset !== undefined ? `<p style="color:#636870;font-size:12px;margin-top:4px;font-family:monospace">Timezone: UTC${meta.timezoneOffset >= 0 ? '+' : ''}${meta.timezoneOffset}</p>` : ''}
+    </div>
+    <div style="background:#141618;border:1px solid #242729;border-radius:10px;padding:16px 24px;text-align:center">
+      <div style="font-family:monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#7a7f8a;margin-bottom:8px">Account Grade</div>
+      <div style="font-size:2.5rem;font-weight:800;letter-spacing:-0.04em;color:${gradeColor}">${metrics.accountGrade.grade}</div>
+      <div style="color:#9ca3af;font-size:12px;margin-top:4px">${metrics.accountGrade.label}</div>
+    </div>
+  </div>
+
+  <!-- KPI Grid -->
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Total Trades</div><div class="kpi-val" style="color:#f0f0ee">${metrics.totalTrades}</div></div>
+    <div class="kpi"><div class="kpi-label">Win Rate</div><div class="kpi-val" style="color:${metrics.winRate >= 50 ? g : r}">${metrics.winRate.toFixed(1)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Profit Factor</div><div class="kpi-val" style="color:${metrics.profitFactor >= 1 ? g : r}">${metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)}</div></div>
+    <div class="kpi"><div class="kpi-label">Net Profit</div><div class="kpi-val" style="color:${metrics.totalProfit >= 0 ? g : r}">${fmtPnl(metrics.totalProfit)}</div></div>
+    <div class="kpi"><div class="kpi-label">Max Drawdown</div><div class="kpi-val" style="color:${metrics.maxDrawdownPct <= 10 ? '#9ca3af' : r}">${metrics.maxDrawdownPct.toFixed(1)}%</div></div>
+    <div class="kpi"><div class="kpi-label">Expectancy</div><div class="kpi-val" style="color:${metrics.expectancy >= 0 ? g : r}">${fmtPnl(metrics.expectancy)}</div></div>
+    <div class="kpi"><div class="kpi-label">Largest Win</div><div class="kpi-val" style="color:${g}">${fmtPnl(metrics.largestWin)}</div></div>
+    <div class="kpi"><div class="kpi-label">Largest Loss</div><div class="kpi-val" style="color:${r}">${fmtPnl(metrics.largestLoss)}</div></div>
+  </div>
+
+  <!-- Balance Curve Sparkline -->
+  ${sparkSvg ? `<div class="section" style="margin-bottom:24px">
+    <div class="section-header">Balance Curve</div>
+    <div style="padding:16px 8px 12px">${sparkSvg}</div>
+    <div style="display:flex;justify-content:space-between;padding:0 16px 12px;font-family:monospace;font-size:11px;color:#7a7f8a">
+      <span>Start: $${curve[0]?.balance?.toFixed(2)}</span>
+      <span>${metrics.totalProfit >= 0 ? '▲' : '▼'} End: $${curve[curve.length-1]?.balance?.toFixed(2)}</span>
+    </div>
+  </div>` : ''}
+
+  <!-- Performance Details -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+
+    <!-- Day Breakdown -->
+    <div class="section">
+      <div class="section-header">Day Breakdown</div>
+      <table><thead><tr><th>Day</th><th style="text-align:center">Trades</th><th style="text-align:center">WR</th><th style="text-align:right">P/L</th><th style="text-align:right">Avg</th></tr></thead>
+      <tbody>${dayRows}</tbody></table>
+    </div>
+
+    <!-- Asset Performance -->
+    <div class="section">
+      <div class="section-header">Asset Performance</div>
+      <table><thead><tr><th>Symbol</th><th style="text-align:center">Trades</th><th style="text-align:center">WR</th><th style="text-align:right">P/L</th></tr></thead>
+      <tbody>${assetRows}</tbody></table>
+    </div>
+  </div>
+
+  <!-- Direction Analysis -->
+  <div class="section" style="margin-bottom:24px">
+    <div class="section-header">Direction Analysis</div>
+    <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      ${['buy','sell'].map(dir => {
+        const s = dir === 'buy'
+          ? { count: trades.filter(t => t.type==='buy').length, wins: trades.filter(t => t.type==='buy'&&t.profit>0).length, pnl: trades.filter(t => t.type==='buy').reduce((s,t)=>s+t.profit,0) }
+          : { count: trades.filter(t => t.type==='sell').length, wins: trades.filter(t => t.type==='sell'&&t.profit>0).length, pnl: trades.filter(t => t.type==='sell').reduce((s,t)=>s+t.profit,0) };
+        const wr = s.count ? ((s.wins/s.count)*100).toFixed(0) : 0;
+        const col = dir === 'buy' ? g : r;
+        return `<div style="border:1px solid #242729;border-radius:8px;padding:16px">
+          <div style="font-family:monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#7a7f8a;margin-bottom:8px">${dir.toUpperCase()}</div>
+          <div style="font-size:1.5rem;font-weight:700;color:${col};margin-bottom:8px">${s.pnl >= 0 ? '+' : ''}$${Math.abs(s.pnl).toFixed(2)}</div>
+          <div style="color:#9ca3af;font-size:12px;font-family:monospace">${s.count} trades · WR: ${wr}% · ${s.wins}W/${s.count-s.wins}L</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+
+  ${leakHtml}
+
+  <!-- AI Recommendations -->
+  <div class="section" style="margin-bottom:24px">
+    <div class="section-header">AI Behavioral Insights</div>
+    <div style="padding:20px">${recHtml || '<p style="color:#636870;font-size:13px">No critical insights detected.</p>'}</div>
+  </div>
+
+  <!-- Trade Log -->
+  <div class="section">
+    <div class="section-header">Trade Log (${Math.min(200, trades.length)} of ${trades.length} trades)</div>
+    <div style="overflow-x:auto">
+      <table style="min-width:800px">
+        <thead><tr>
+          <th>Open Time</th><th>Symbol</th><th>Type</th>
+          <th style="text-align:center">Vol</th><th style="text-align:right">Open</th>
+          <th style="text-align:right">Close</th><th style="text-align:right">Duration</th>
+          <th style="text-align:right">P/L</th>
+        </tr></thead>
+        <tbody>${tradeRows}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:40px;color:#3a3f47;font-family:monospace;font-size:11px;letter-spacing:0.08em">
+    GENERATED BY MT5 ANALYTICS DASHBOARD · ${new Date().toISOString().slice(0, 10)}
+  </div>
+
+</div>
+</body>
+</html>`;
+}
 
 export function generateTextReport(trades, metrics, meta) {
   const lines = [];

@@ -1,33 +1,36 @@
 import { useState, useCallback } from 'react';
-import { parseMT5Report, computeAllMetrics, generateTextReport } from './utils/mt5Engine';
+import { parseMT5Report, computeAllMetrics, generateHtmlReport } from './utils/mt5Engine';
 import FileUploader from './components/FileUploader';
 import GamifiedOverview from './components/GamifiedOverview';
 import AdvancedAnalytics from './components/AdvancedAnalytics';
 import InteractiveCharts from './components/InteractiveCharts';
 import JournalCalendar from './components/JournalCalendar';
+import TradeHistory from './components/TradeHistory';
 import {
-  LayoutDashboard, BarChart3, Brain, CalendarDays,
+  LayoutDashboard, BarChart3, Brain, CalendarDays, ClipboardList,
   Download, Upload, Zap, ChevronRight,
 } from 'lucide-react';
 
 const TABS = [
-  { id: 'overview',   label: 'Overview',   icon: LayoutDashboard },
-  { id: 'analytics',  label: 'Analytics',  icon: Brain           },
-  { id: 'charts',     label: 'Charts',     icon: BarChart3       },
-  { id: 'journal',    label: 'Journal',    icon: CalendarDays    },
+  { id: 'overview', label: 'Overview',   icon: LayoutDashboard },
+  { id: 'analytics', label: 'Analytics', icon: Brain           },
+  { id: 'charts',   label: 'Charts',     icon: BarChart3       },
+  { id: 'journal',  label: 'Journal',    icon: CalendarDays    },
+  { id: 'history',  label: 'History',    icon: ClipboardList   },
 ];
 
 export default function App() {
-  const [trades, setTrades]       = useState(null);
-  const [metrics, setMetrics]     = useState(null);
-  const [meta, setMeta]           = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [fileName, setFileName]   = useState('');
+  const [trades,      setTrades]      = useState(null);
+  const [metrics,     setMetrics]     = useState(null);
+  const [meta,        setMeta]        = useState(null);
+  const [activeTab,   setActiveTab]   = useState('overview');
+  const [fileName,    setFileName]    = useState('');
   const [isExporting, setIsExporting] = useState(false);
 
-  const handleFileLoaded = useCallback((htmlString, name) => {
+  // timezoneOffset passed from FileUploader
+  const handleFileLoaded = useCallback((htmlString, name, timezoneOffset = 2) => {
     try {
-      const { trades: parsed, meta: parsedMeta, reportStats } = parseMT5Report(htmlString);
+      const { trades: parsed, meta: parsedMeta, reportStats } = parseMT5Report(htmlString, timezoneOffset);
       if (parsed.length === 0) {
         alert('No trade data found in the report. Please check the file format.');
         return;
@@ -47,12 +50,12 @@ export default function App() {
     if (!trades || !metrics || !meta) return;
     setIsExporting(true);
     try {
-      const report = generateTextReport(trades, metrics, meta);
-      const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `mt5-analytics-report-${new Date().toISOString().slice(0, 10)}.txt`;
+      const report = generateHtmlReport(trades, metrics, meta);
+      const blob   = new Blob([report], { type: 'text/html;charset=utf-8' });
+      const url    = URL.createObjectURL(blob);
+      const a      = document.createElement('a');
+      a.href       = url;
+      a.download   = `mt5-analytics-report-${new Date().toISOString().slice(0, 10)}.html`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -111,10 +114,7 @@ export default function App() {
           <div className="topbar-actions">
             <button onClick={handleExportReport} disabled={isExporting} className="btn btn-sm">
               <Download size={13} />
-              <span style={{ display: 'none' }} id="export-label-desktop">
-                {isExporting ? 'Exporting…' : 'Export'}
-              </span>
-              <span className="hide-on-xs">{isExporting ? 'Exporting…' : 'Export'}</span>
+              <span className="hide-on-xs">{isExporting ? 'Exporting…' : 'Export HTML'}</span>
             </button>
             <button onClick={handleReset} className="btn btn-sm">
               <Upload size={13} />
@@ -152,7 +152,15 @@ export default function App() {
         {meta?.account && (
           <>
             <ChevronRight size={10} style={{ color: 'var(--ink-mute)' }} />
-            <span className="t-label" style={{ color: 'var(--accent)' }}>{meta.account}</span>
+            <span className="t-label" style={{ color: 'var(--accent-bright)' }}>{meta.account}</span>
+          </>
+        )}
+        {meta?.timezoneOffset !== undefined && (
+          <>
+            <ChevronRight size={10} style={{ color: 'var(--ink-mute)' }} />
+            <span className="t-label">
+              UTC{meta.timezoneOffset >= 0 ? '+' : ''}{meta.timezoneOffset}
+            </span>
           </>
         )}
         <span className="t-label" style={{ marginLeft: 'auto' }}>
@@ -170,7 +178,7 @@ export default function App() {
         )}
         {activeTab === 'analytics' && (
           <div className="fade-up">
-            <AdvancedAnalytics metrics={metrics} />
+            <AdvancedAnalytics metrics={metrics} trades={trades} />
           </div>
         )}
         {activeTab === 'charts' && (
@@ -181,6 +189,11 @@ export default function App() {
         {activeTab === 'journal' && (
           <div className="fade-up">
             <JournalCalendar calendarData={metrics?.calendarData} />
+          </div>
+        )}
+        {activeTab === 'history' && (
+          <div className="fade-up">
+            <TradeHistory trades={trades} />
           </div>
         )}
       </main>

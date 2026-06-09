@@ -1,4 +1,4 @@
-import { Upload, FileText, Zap, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Zap, AlertCircle, Globe } from 'lucide-react';
 import { useState, useCallback } from 'react';
 
 const FEATURES = [
@@ -7,10 +7,43 @@ const FEATURES = [
   { label: 'Leakage Detector',  desc: 'Find & Fix Profit Drains'     },
 ];
 
+// Common forex / MT5 broker timezone offsets
+const TIMEZONE_OPTIONS = [
+  { label: 'UTC−12',  value: -12 },
+  { label: 'UTC−11',  value: -11 },
+  { label: 'UTC−10',  value: -10 },
+  { label: 'UTC−9',   value: -9  },
+  { label: 'UTC−8',   value: -8  },
+  { label: 'UTC−7',   value: -7  },
+  { label: 'UTC−6',   value: -6  },
+  { label: 'UTC−5',   value: -5  },
+  { label: 'UTC−4',   value: -4  },
+  { label: 'UTC−3',   value: -3  },
+  { label: 'UTC−2',   value: -2  },
+  { label: 'UTC−1',   value: -1  },
+  { label: 'UTC±0',   value:  0  },
+  { label: 'UTC+1',   value:  1  },
+  { label: 'UTC+2 (MT5 Default)', value: 2 },
+  { label: 'UTC+3',   value:  3  },
+  { label: 'UTC+4',   value:  4  },
+  { label: 'UTC+5',   value:  5  },
+  { label: 'UTC+5:30 (IST)', value: 5.5 },
+  { label: 'UTC+6',   value:  6  },
+  { label: 'UTC+7',   value:  7  },
+  { label: 'UTC+8',   value:  8  },
+  { label: 'UTC+9',   value:  9  },
+  { label: 'UTC+10',  value: 10  },
+  { label: 'UTC+11',  value: 11  },
+  { label: 'UTC+12',  value: 12  },
+  { label: 'UTC+13',  value: 13  },
+  { label: 'UTC+14',  value: 14  },
+];
+
 export default function FileUploader({ onFileLoaded }) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [error,      setError]      = useState('');
-  const [isLoading,  setIsLoading]  = useState(false);
+  const [isDragging,      setIsDragging]      = useState(false);
+  const [error,           setError]           = useState('');
+  const [isLoading,       setIsLoading]       = useState(false);
+  const [timezoneOffset,  setTimezoneOffset]  = useState(2); // UTC+2 default
 
   const handleFile = useCallback(async (file) => {
     if (!file) return;
@@ -22,14 +55,14 @@ export default function FileUploader({ onFileLoaded }) {
     setError('');
     try {
       const text = await file.text();
-      onFileLoaded(text, file.name);
+      onFileLoaded(text, file.name, timezoneOffset);
     } catch (err) {
       setError('Failed to read the file. Please try again.');
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  }, [onFileLoaded]);
+  }, [onFileLoaded, timezoneOffset]);
 
   const handleDrop       = useCallback((e) => { e.preventDefault(); setIsDragging(false); handleFile(e.dataTransfer.files[0]); }, [handleFile]);
   const handleDragOver   = useCallback((e) => { e.preventDefault(); setIsDragging(true);  }, []);
@@ -41,7 +74,10 @@ export default function FileUploader({ onFileLoaded }) {
     setIsLoading(true);
     try {
       const res = await fetch('/ReportHistorytest.html');
-      if (res.ok) { const text = await res.text(); onFileLoaded(text, 'ReportHistorytest.html'); }
+      if (res.ok) {
+        const text = await res.text();
+        onFileLoaded(text, 'ReportHistorytest.html', timezoneOffset);
+      }
     } catch (err) { console.error(err); }
     finally { setIsLoading(false); }
   };
@@ -66,7 +102,7 @@ export default function FileUploader({ onFileLoaded }) {
             border: '1px solid var(--hairline)',
             marginBottom: 24,
           }}>
-            <Zap size={12} style={{ color: 'var(--accent)' }} />
+            <Zap size={12} style={{ color: 'var(--accent-bright)' }} />
             <span className="t-label">MT5 Analytics Engine</span>
           </div>
 
@@ -76,14 +112,44 @@ export default function FileUploader({ onFileLoaded }) {
             letterSpacing: '-0.03em',
             color: 'var(--ink)',
             marginBottom: 12,
+            fontWeight: 600,
           }}>
             Trading Analytics<br />Dashboard
           </h1>
 
-          <p style={{ color: 'var(--ink-mute)', fontSize: '0.875rem', lineHeight: 1.6, maxWidth: 380, margin: '0 auto' }}>
+          <p style={{ color: 'var(--ink-dim)', fontSize: '0.9rem', lineHeight: 1.6, maxWidth: 380, margin: '0 auto' }}>
             Upload your MetaTrader 5 HTML report to unlock deep behavioral insights,
             gamified performance tracking, and AI-driven recommendations.
           </p>
+        </div>
+
+        {/* Timezone Selector */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '12px 16px',
+          borderRadius: 'var(--radius)',
+          border: '1px solid var(--hairline)',
+          background: 'var(--canvas-mid)',
+          marginBottom: 12,
+        }}>
+          <Globe size={15} style={{ color: 'var(--accent-bright)', flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ color: 'var(--ink)', fontSize: '0.875rem', fontWeight: 500, marginBottom: 2 }}>
+              Report Timezone
+            </p>
+            <p style={{ color: 'var(--ink-mute)', fontSize: '0.75rem' }}>
+              MT5 brokers typically use UTC+2 (EET). Select the timezone your broker uses.
+            </p>
+          </div>
+          <select
+            className="select"
+            value={timezoneOffset}
+            onChange={(e) => setTimezoneOffset(parseFloat(e.target.value))}
+          >
+            {TIMEZONE_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
 
         {/* Drop Zone */}
@@ -99,8 +165,8 @@ export default function FileUploader({ onFileLoaded }) {
             padding: '40px 32px',
             textAlign: 'center',
             transition: 'all 0.2s ease',
-            border: isDragging ? '1.5px solid var(--ink)' : '1.5px dashed var(--hairline)',
-            background: isDragging ? 'rgba(255,255,255,0.04)' : 'var(--canvas-card)',
+            border: isDragging ? '1.5px solid var(--accent-bright)' : '1.5px dashed var(--hairline)',
+            background: isDragging ? 'rgba(22,163,74,0.04)' : 'var(--canvas-card)',
           }}
         >
           <input
@@ -116,7 +182,7 @@ export default function FileUploader({ onFileLoaded }) {
               <div style={{
                 width: 44, height: 44, borderRadius: '50%',
                 border: '2px solid var(--hairline)',
-                borderTopColor: 'var(--accent)',
+                borderTopColor: 'var(--accent-bright)',
               }} className="spin-anim" />
               <span className="t-label" style={{ letterSpacing: '0.1em' }}>Processing report…</span>
             </div>
@@ -128,13 +194,13 @@ export default function FileUploader({ onFileLoaded }) {
                 border: '1px solid var(--hairline)',
                 background: 'var(--canvas-soft)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: isDragging ? 'var(--ink)' : 'var(--ink-mute)',
+                color: isDragging ? 'var(--accent-bright)' : 'var(--ink-mute)',
                 transition: 'all 0.2s',
               }}>
                 {isDragging ? <FileText size={22} /> : <Upload size={22} />}
               </div>
 
-              <p style={{ color: 'var(--ink)', fontSize: '0.9375rem', marginBottom: 6 }}>
+              <p style={{ color: 'var(--ink)', fontSize: '0.9375rem', marginBottom: 6, fontWeight: 500 }}>
                 {isDragging ? 'Drop your report here' : 'Drop MT5 Report or Click to Upload'}
               </p>
               <p style={{ color: 'var(--ink-mute)', fontSize: '0.8125rem' }}>
@@ -172,8 +238,8 @@ export default function FileUploader({ onFileLoaded }) {
               background: 'var(--canvas-card)',
               textAlign: 'center',
             }}>
-              <p style={{ color: 'var(--ink)', fontSize: '0.8125rem', marginBottom: 4 }}>{f.label}</p>
-              <p className="t-label" style={{ fontSize: '0.625rem' }}>{f.desc}</p>
+              <p style={{ color: 'var(--ink)', fontSize: '0.8125rem', marginBottom: 4, fontWeight: 500 }}>{f.label}</p>
+              <p className="t-label" style={{ fontSize: '0.7rem' }}>{f.desc}</p>
             </div>
           ))}
         </div>
