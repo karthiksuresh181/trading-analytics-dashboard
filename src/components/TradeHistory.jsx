@@ -5,10 +5,10 @@ import {
   CartesianGrid, ReferenceLine, Area, AreaChart,
 } from 'recharts';
 
-const GREEN      = '#22c55e';
-const RED        = '#f43f5e';
-const GREEN_DIM  = 'rgba(22,163,74,0.15)';
-const RED_DIM    = 'rgba(244,63,94,0.15)';
+const GREEN = '#10b981';
+const RED = '#f43f5e';
+const GREEN_DIM = 'rgba(16, 185, 129, 0.12)';
+const RED_DIM = 'rgba(244, 63, 94, 0.10)';
 
 function fmtTime(date) {
   if (!date) return '—';
@@ -55,7 +55,7 @@ function DailyPnLLine({ trades }) {
       <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id={`dlg-${isPositiveEnd}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor={lineColor} stopOpacity={0.18} />
+            <stop offset="0%" stopColor={lineColor} stopOpacity={0.18} />
             <stop offset="100%" stopColor={lineColor} stopOpacity={0.02} />
           </linearGradient>
         </defs>
@@ -111,10 +111,10 @@ function DailyPnLLine({ trades }) {
 function DayCard({ dateKey, trades }) {
   const [expanded, setExpanded] = useState(true);
 
-  const dayPnL    = trades.reduce((s, t) => s + t.profit, 0);
-  const wins      = trades.filter(t => t.profit > 0).length;
-  const losses    = trades.filter(t => t.profit < 0).length;
-  const isPos     = dayPnL >= 0;
+  const dayPnL = trades.reduce((s, t) => s + t.profit, 0);
+  const wins = trades.filter(t => t.profit > 0).length;
+  const losses = trades.filter(t => t.profit < 0).length;
+  const isPos = dayPnL >= 0;
 
   return (
     <div className="card" style={{ overflow: 'visible' }}>
@@ -232,8 +232,8 @@ function DayCard({ dateKey, trades }) {
                     transition: 'background 0.12s',
                     background: 'transparent',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
                     <span style={{ color: 'var(--ink-dim)', fontSize: '0.8rem', fontFamily: 'JetBrains Mono, monospace' }}>
                       {fmtTime(t.closeTime || t.openTime)}
@@ -301,12 +301,12 @@ export default function TradeHistory({ trades }) {
   if (!trades || trades.length === 0) return null;
 
   const currentMonth = months[monthIdx] || months[0];
-  const [yr, mo]     = currentMonth.split('-').map(Number);
-  const monthLabel   = new Date(yr, mo - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const [yr, mo] = currentMonth.split('-').map(Number);
+  const monthLabel = new Date(yr, mo - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
   const filteredGroups = grouped.filter(g => g.date.startsWith(currentMonth));
-  const monthPnL       = filteredGroups.reduce((s, g) => s + g.trades.reduce((ss, t) => ss + t.profit, 0), 0);
-  const monthTrades    = filteredGroups.reduce((s, g) => s + g.trades.length, 0);
+  const monthPnL = filteredGroups.reduce((s, g) => s + g.trades.reduce((ss, t) => ss + t.profit, 0), 0);
+  const monthTrades = filteredGroups.reduce((s, g) => s + g.trades.length, 0);
 
   return (
     <div className="stack">

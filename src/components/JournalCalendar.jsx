@@ -2,13 +2,13 @@ import { useState, useMemo, useRef, useCallback } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Camera } from 'lucide-react';
 
 const MONTH_NAMES = [
-  'January','February','March','April','May','June',
-  'July','August','September','October','November','December',
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
-const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const GREEN = '#22c55e';
-const RED   = '#f43f5e';
+const GREEN = '#10b981';
+const RED = '#f43f5e';
 
 /* Return the ISO week number for a given date */
 function isoWeek(dateStr) {
@@ -76,20 +76,20 @@ export default function JournalCalendar({ calendarData }) {
   const dataMap = {};
   for (const d of calendarData) dataMap[d.date] = d;
 
-  const firstDay    = new Date(year, month - 1, 1);
+  const firstDay = new Date(year, month - 1, 1);
   const daysInMonth = new Date(year, month, 0).getDate();
-  let startDow      = firstDay.getDay();
+  let startDow = firstDay.getDay();
   startDow = startDow === 0 ? 6 : startDow - 1; // Mon=0 … Sun=6
 
   // Build cell list
   const cells = [];
   for (let i = 0; i < startDow; i++) cells.push({ type: 'empty', key: `e${i}` });
   for (let d = 1; d <= daysInMonth; d++) {
-    const key  = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const data = dataMap[key];
     cells.push({
       type: 'day', day: d, date: key,
-      pnl:    data?.pnl    ?? null,
+      pnl: data?.pnl ?? null,
       trades: data?.trades ?? 0,
       hasData: !!data,
       key,
@@ -100,9 +100,9 @@ export default function JournalCalendar({ calendarData }) {
   const weeks = buildWeeks(cells, year, month, dataMap);
 
   const monthTrades = calendarData.filter(d => d.date.startsWith(currentMonth));
-  const monthPnL    = monthTrades.reduce((s, d) => s + d.pnl, 0);
-  const profitDays  = monthTrades.filter(d => d.pnl > 0).length;
-  const lossDays    = monthTrades.filter(d => d.pnl < 0).length;
+  const monthPnL = monthTrades.reduce((s, d) => s + d.pnl, 0);
+  const profitDays = monthTrades.filter(d => d.pnl > 0).length;
+  const lossDays = monthTrades.filter(d => d.pnl < 0).length;
   const tradingDays = monthTrades.length;
 
   // Build rows (7 days + 1 weekly PnL column = 8 columns)
@@ -127,7 +127,7 @@ export default function JournalCalendar({ calendarData }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
-                  disabled={currentIdx <= 0} className="btn-icon">
+            disabled={currentIdx <= 0} className="btn-icon">
             <ChevronLeft size={14} />
           </button>
           <span style={{
@@ -138,7 +138,7 @@ export default function JournalCalendar({ calendarData }) {
             {MONTH_NAMES[month - 1]} {year}
           </span>
           <button onClick={() => setCurrentIdx(Math.min(months.length - 1, currentIdx + 1))}
-                  disabled={currentIdx >= months.length - 1} className="btn-icon">
+            disabled={currentIdx >= months.length - 1} className="btn-icon">
             <ChevronRight size={14} />
           </button>
           <button onClick={handleSnapshot} className="btn-icon" title="Download snapshot" style={{ marginLeft: 4 }}>
@@ -152,9 +152,9 @@ export default function JournalCalendar({ calendarData }) {
         {/* Monthly Summary */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           <SummaryTile label="Month P/L" value={`${monthPnL >= 0 ? '+' : ''}$${monthPnL.toFixed(2)}`} color={monthPnL >= 0 ? GREEN : RED} />
-          <SummaryTile label="Trading Days" value={tradingDays} color="var(--ink)"  />
-          <SummaryTile label="Green Days"   value={profitDays}  color={GREEN}       />
-          <SummaryTile label="Red Days"     value={lossDays}    color={RED}         />
+          <SummaryTile label="Trading Days" value={tradingDays} color="var(--ink)" />
+          <SummaryTile label="Green Days" value={profitDays} color={GREEN} />
+          <SummaryTile label="Red Days" value={lossDays} color={RED} />
         </div>
 
         {/* Column headers: 7 day labels + "Week" */}
@@ -181,8 +181,8 @@ export default function JournalCalendar({ calendarData }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {rows.map((row, rowIdx) => {
             const weekData = weeks[rowIdx];
-            const wPnl  = weekData?.pnl ?? 0;
-            const wPos  = wPnl >= 0;
+            const wPnl = weekData?.pnl ?? 0;
+            const wPos = wPnl >= 0;
             const hasWeekTrades = weekData?.dates?.some(dk => !!dataMap[dk]);
 
             return (
@@ -254,18 +254,18 @@ export default function JournalCalendar({ calendarData }) {
 function DayCell({ cell, dataMap }) {
   if (cell.type === 'empty') return <div style={{ aspectRatio: '1' }} />;
 
-  const data    = dataMap[cell.date];
+  const data = dataMap[cell.date];
   const isGreen = cell.hasData && cell.pnl > 0;
-  const isRed   = cell.hasData && cell.pnl < 0;
+  const isRed = cell.hasData && cell.pnl < 0;
 
   let bg = 'transparent', border = 'var(--hairline)';
   if (isGreen) {
     const intensity = Math.min(1, Math.abs(cell.pnl) / 80);
-    bg     = `rgba(22,163,74,${0.07 + intensity * 0.16})`;
+    bg = `rgba(22,163,74,${0.07 + intensity * 0.16})`;
     border = `rgba(22,163,74,${0.22 + intensity * 0.25})`;
   } else if (isRed) {
     const intensity = Math.min(1, Math.abs(cell.pnl) / 80);
-    bg     = `rgba(244,63,94,${0.07 + intensity * 0.16})`;
+    bg = `rgba(244,63,94,${0.07 + intensity * 0.16})`;
     border = `rgba(244,63,94,${0.22 + intensity * 0.25})`;
   }
 
@@ -284,7 +284,7 @@ function DayCell({ cell, dataMap }) {
       display: 'flex',
       flexDirection: 'column',
     }}
-    className={cell.hasData ? 'cal-cell-hover' : ''}
+      className={cell.hasData ? 'cal-cell-hover' : ''}
     >
       <style>{`.cal-cell-hover:hover { transform: scale(1.1); z-index: 2; }`}</style>
 

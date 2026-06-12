@@ -112,18 +112,18 @@ function parsePositionsTable(doc, tzOffset = 2) {
     // [4] Volume, [5] Open Price, [6] S/L, [7] T/P,
     // [8] Close Time, [9] Close Price, [10] Commission, [11] Swap, [12] Profit
     const openTimeStr = visibleCells[0]?.textContent?.trim() || '';
-    const positionId  = visibleCells[1]?.textContent?.trim() || '';
-    const symbol      = visibleCells[2]?.textContent?.trim() || '';
-    const type        = visibleCells[3]?.textContent?.trim()?.toLowerCase() || '';
-    const volume      = parseNum(visibleCells[4]?.textContent);
-    const openPrice   = parseNum(visibleCells[5]?.textContent);
-    const sl          = parseNum(visibleCells[6]?.textContent);
-    const tp          = parseNum(visibleCells[7]?.textContent);
-    const closeTimeStr= visibleCells[8]?.textContent?.trim() || '';
-    const closePrice  = parseNum(visibleCells[9]?.textContent);
-    const commission  = parseNum(visibleCells[10]?.textContent);
-    const swap        = parseNum(visibleCells[11]?.textContent);
-    const profit      = parseNum(visibleCells[12]?.textContent);
+    const positionId = visibleCells[1]?.textContent?.trim() || '';
+    const symbol = visibleCells[2]?.textContent?.trim() || '';
+    const type = visibleCells[3]?.textContent?.trim()?.toLowerCase() || '';
+    const volume = parseNum(visibleCells[4]?.textContent);
+    const openPrice = parseNum(visibleCells[5]?.textContent);
+    const sl = parseNum(visibleCells[6]?.textContent);
+    const tp = parseNum(visibleCells[7]?.textContent);
+    const closeTimeStr = visibleCells[8]?.textContent?.trim() || '';
+    const closePrice = parseNum(visibleCells[9]?.textContent);
+    const commission = parseNum(visibleCells[10]?.textContent);
+    const swap = parseNum(visibleCells[11]?.textContent);
+    const profit = parseNum(visibleCells[12]?.textContent);
 
     if (!openTimeStr || !symbol) continue;
 
@@ -276,17 +276,17 @@ function parseResultsSection(doc) {
       const label = cells[i].textContent.trim().replace(/:$/, '');
       const value = cells[i + 1]?.textContent?.trim() || '';
 
-      if (label.includes('Total Net Profit'))          stats.totalNetProfit = parseNum(value);
-      if (label.includes('Gross Profit'))               stats.grossProfit = parseNum(value);
-      if (label.includes('Gross Loss'))                 stats.grossLoss = parseNum(value);
-      if (label.includes('Profit Factor'))              stats.profitFactor = parseNum(value);
-      if (label.includes('Expected Payoff'))            stats.expectedPayoff = parseNum(value);
-      if (label.includes('Recovery Factor'))            stats.recoveryFactor = parseNum(value);
-      if (label.includes('Sharpe Ratio'))               stats.sharpeRatio = parseNum(value);
-      if (label.includes('Balance Drawdown Absolute'))  stats.ddAbsolute = parseNum(value);
-      if (label.includes('Balance Drawdown Maximal'))   stats.ddMaximal = value;
-      if (label.includes('Balance Drawdown Relative'))  stats.ddRelative = value;
-      if (label.includes('Total Trades'))               stats.totalTrades = parseNum(value);
+      if (label.includes('Total Net Profit')) stats.totalNetProfit = parseNum(value);
+      if (label.includes('Gross Profit')) stats.grossProfit = parseNum(value);
+      if (label.includes('Gross Loss')) stats.grossLoss = parseNum(value);
+      if (label.includes('Profit Factor')) stats.profitFactor = parseNum(value);
+      if (label.includes('Expected Payoff')) stats.expectedPayoff = parseNum(value);
+      if (label.includes('Recovery Factor')) stats.recoveryFactor = parseNum(value);
+      if (label.includes('Sharpe Ratio')) stats.sharpeRatio = parseNum(value);
+      if (label.includes('Balance Drawdown Absolute')) stats.ddAbsolute = parseNum(value);
+      if (label.includes('Balance Drawdown Maximal')) stats.ddMaximal = value;
+      if (label.includes('Balance Drawdown Relative')) stats.ddRelative = value;
+      if (label.includes('Total Trades')) stats.totalTrades = parseNum(value);
       if (label.includes('Balance') && !label.includes('Drawdown')) {
         if (!stats.balance) stats.balance = parseNum(value);
       }
@@ -811,11 +811,11 @@ function generateRecommendations(data) {
 // ── EXPORT REPORT GENERATION ────────────────────────────────────────────────
 
 export function generateHtmlReport(trades, metrics, meta) {
-  const g = '#22c55e';
+  const g = '#10b981';
   const r = '#f43f5e';
   const fmtPnl = (v, prefix = '$') => `${v >= 0 ? '+' : ''}${prefix}${Math.abs(v).toFixed(2)}`;
   const fmtDate = (d) => d ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-  const fmtDur = (m) => m < 60 ? `${Math.round(m)}m` : `${Math.floor(m/60)}h ${Math.round(m%60)}m`;
+  const fmtDur = (m) => m < 60 ? `${Math.round(m)}m` : `${Math.floor(m / 60)}h ${Math.round(m % 60)}m`;
 
   // Equity curve mini SVG sparkline
   const curve = metrics.equityCurve;
@@ -868,7 +868,7 @@ export function generateHtmlReport(trades, metrics, meta) {
     return `<tr style="background:${i % 2 === 0 ? '#0d0f11' : '#111316'}">
       <td style="color:#9ca3af;font-family:monospace">${fmtDate(t.openTime)}</td>
       <td style="font-weight:600;color:#f0f0ee">${t.symbol}</td>
-      <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${t.type==='buy'?'rgba(22,163,74,0.15)':'rgba(244,63,94,0.15)'};color:${t.type==='buy'?'#4ade80':'#fb7185'};border:1px solid ${t.type==='buy'?'rgba(22,163,74,0.3)':'rgba(244,63,94,0.3)'}">${t.type.toUpperCase()}</span></td>
+      <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${t.type === 'buy' ? 'rgba(22,163,74,0.15)' : 'rgba(244,63,94,0.15)'};color:${t.type === 'buy' ? '#4ade80' : '#fb7185'};border:1px solid ${t.type === 'buy' ? 'rgba(22,163,74,0.3)' : 'rgba(244,63,94,0.3)'}">${t.type.toUpperCase()}</span></td>
       <td style="text-align:center;color:#9ca3af;font-family:monospace">${t.volume}</td>
       <td style="text-align:right;color:#9ca3af;font-family:monospace">${t.openPrice?.toFixed(5)}</td>
       <td style="text-align:right;color:#9ca3af;font-family:monospace">${t.closePrice?.toFixed(5)}</td>
@@ -953,7 +953,7 @@ export function generateHtmlReport(trades, metrics, meta) {
     <div style="padding:16px 8px 12px">${sparkSvg}</div>
     <div style="display:flex;justify-content:space-between;padding:0 16px 12px;font-family:monospace;font-size:11px;color:#7a7f8a">
       <span>Start: $${curve[0]?.balance?.toFixed(2)}</span>
-      <span>${metrics.totalProfit >= 0 ? '▲' : '▼'} End: $${curve[curve.length-1]?.balance?.toFixed(2)}</span>
+      <span>${metrics.totalProfit >= 0 ? '▲' : '▼'} End: $${curve[curve.length - 1]?.balance?.toFixed(2)}</span>
     </div>
   </div>` : ''}
 
@@ -979,18 +979,18 @@ export function generateHtmlReport(trades, metrics, meta) {
   <div class="section" style="margin-bottom:24px">
     <div class="section-header">Direction Analysis</div>
     <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      ${['buy','sell'].map(dir => {
-        const s = dir === 'buy'
-          ? { count: trades.filter(t => t.type==='buy').length, wins: trades.filter(t => t.type==='buy'&&t.profit>0).length, pnl: trades.filter(t => t.type==='buy').reduce((s,t)=>s+t.profit,0) }
-          : { count: trades.filter(t => t.type==='sell').length, wins: trades.filter(t => t.type==='sell'&&t.profit>0).length, pnl: trades.filter(t => t.type==='sell').reduce((s,t)=>s+t.profit,0) };
-        const wr = s.count ? ((s.wins/s.count)*100).toFixed(0) : 0;
-        const col = dir === 'buy' ? g : r;
-        return `<div style="border:1px solid #242729;border-radius:8px;padding:16px">
+      ${['buy', 'sell'].map(dir => {
+    const s = dir === 'buy'
+      ? { count: trades.filter(t => t.type === 'buy').length, wins: trades.filter(t => t.type === 'buy' && t.profit > 0).length, pnl: trades.filter(t => t.type === 'buy').reduce((s, t) => s + t.profit, 0) }
+      : { count: trades.filter(t => t.type === 'sell').length, wins: trades.filter(t => t.type === 'sell' && t.profit > 0).length, pnl: trades.filter(t => t.type === 'sell').reduce((s, t) => s + t.profit, 0) };
+    const wr = s.count ? ((s.wins / s.count) * 100).toFixed(0) : 0;
+    const col = dir === 'buy' ? g : r;
+    return `<div style="border:1px solid #242729;border-radius:8px;padding:16px">
           <div style="font-family:monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#7a7f8a;margin-bottom:8px">${dir.toUpperCase()}</div>
           <div style="font-size:1.5rem;font-weight:700;color:${col};margin-bottom:8px">${s.pnl >= 0 ? '+' : ''}$${Math.abs(s.pnl).toFixed(2)}</div>
-          <div style="color:#9ca3af;font-size:12px;font-family:monospace">${s.count} trades · WR: ${wr}% · ${s.wins}W/${s.count-s.wins}L</div>
+          <div style="color:#9ca3af;font-size:12px;font-family:monospace">${s.count} trades · WR: ${wr}% · ${s.wins}W/${s.count - s.wins}L</div>
         </div>`;
-      }).join('')}
+  }).join('')}
     </div>
   </div>
 

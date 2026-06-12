@@ -5,12 +5,12 @@ import {
 import { TrendingUp, BarChart3, Clock, PieChart as PieIcon } from 'lucide-react';
 
 const C = {
-  green:  '#22c55e',
-  greenDim: '#16a34a',
+  green: '#10b981',
+  greenDim: 'rgba(16, 185, 129, 0.12)',
   violet: '#7c3aed',
-  blue:   '#a0c3ec',
-  red:    '#f43f5e',
-  mute:   '#3a3f47',
+  blue: '#a0c3ec',
+  red: '#f43f5e',
+  mute: '#3a3f47',
 };
 
 /* Format dates for X-axis labels: "09 Jun" */
@@ -48,13 +48,13 @@ export default function InteractiveCharts({ metrics, trades }) {
   });
 
   const dateTicks = buildDateTicks(balanceData, 10);
-  const minPnL    = Math.min(0, ...balanceData.map(d => d.cumulativePnL));
-  const maxPnL    = Math.max(0, ...balanceData.map(d => d.cumulativePnL));
+  const minPnL = Math.min(0, ...balanceData.map(d => d.cumulativePnL));
+  const maxPnL = Math.max(0, ...balanceData.map(d => d.cumulativePnL));
 
   const hourlyData = metrics.hourlyPnL.filter(h => h.count > 0);
-  const pieData    = [
-    { name: 'Wins',   value: metrics.wins,   color: C.green },
-    { name: 'Losses', value: metrics.losses, color: C.red    },
+  const pieData = [
+    { name: 'Wins', value: metrics.wins, color: C.green },
+    { name: 'Losses', value: metrics.losses, color: C.red },
     ...(metrics.breakeven > 0 ? [{ name: 'Breakeven', value: metrics.breakeven, color: C.mute }] : []),
   ];
 
@@ -72,17 +72,17 @@ export default function InteractiveCharts({ metrics, trades }) {
             <AreaChart data={balanceData} margin={{ top: 12, right: 20, left: 10, bottom: 0 }}>
               <defs>
                 <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor={C.green}    stopOpacity={0.22} />
-                  <stop offset="100%" stopColor={C.green}    stopOpacity={0.02} />
+                  <stop offset="0%" stopColor={C.green} stopOpacity={0.22} />
+                  <stop offset="100%" stopColor={C.green} stopOpacity={0.02} />
                 </linearGradient>
                 <linearGradient id="balGradNeg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor={C.red}      stopOpacity={0.02} />
-                  <stop offset="100%" stopColor={C.red}      stopOpacity={0.18} />
+                  <stop offset="0%" stopColor={C.red} stopOpacity={0.02} />
+                  <stop offset="100%" stopColor={C.red} stopOpacity={0.18} />
                 </linearGradient>
                 <linearGradient id="balStroke" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%"   stopColor={C.greenDim} />
-                  <stop offset="60%"  stopColor={C.green}    />
-                  <stop offset="100%" stopColor="#4ade80"     />
+                  <stop offset="0%" stopColor={C.greenDim} />
+                  <stop offset="60%" stopColor={C.green} />
+                  <stop offset="100%" stopColor="#4ade80" />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -166,8 +166,8 @@ export default function InteractiveCharts({ metrics, trades }) {
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie data={pieData} dataKey="value" cx="50%" cy="50%"
-                     innerRadius={52} outerRadius={72}
-                     paddingAngle={2} stroke="transparent" animationDuration={1000}>
+                  innerRadius={52} outerRadius={72}
+                  paddingAngle={2} stroke="transparent" animationDuration={1000}>
                   {pieData.map((entry, idx) => (
                     <Cell key={idx} fill={entry.color} />
                   ))}
@@ -199,9 +199,9 @@ export default function InteractiveCharts({ metrics, trades }) {
           <div className="stack">
             {metrics.assetPnL.map((asset) => {
               const maxAbs = Math.max(...metrics.assetPnL.map(a => Math.abs(a.totalPnL)));
-              const pct    = maxAbs > 0 ? (Math.abs(asset.totalPnL) / maxAbs) * 100 : 0;
-              const isPos  = asset.totalPnL >= 0;
-              const wr     = asset.count > 0 ? ((asset.wins / asset.count) * 100).toFixed(0) : 0;
+              const pct = maxAbs > 0 ? (Math.abs(asset.totalPnL) / maxAbs) * 100 : 0;
+              const isPos = asset.totalPnL >= 0;
+              const wr = asset.count > 0 ? ((asset.wins / asset.count) * 100).toFixed(0) : 0;
 
               return (
                 <div key={asset.symbol} style={{ display: 'flex', flexDirection: 'column', gap: 8 }} className="asset-row">
@@ -292,7 +292,7 @@ const tipStyle = {
 function BalanceTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
-  const isPos    = d.profit >= 0;
+  const isPos = d.profit >= 0;
   const isCumPos = d.cumulativePnL >= 0;
 
   // Format date for tooltip
@@ -302,7 +302,7 @@ function BalanceTooltip({ active, payload }) {
     dateDisplay = dt.toLocaleDateString('en-GB', {
       weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
     });
-  } catch {}
+  } catch { }
 
   return (
     <div style={tipStyle}>

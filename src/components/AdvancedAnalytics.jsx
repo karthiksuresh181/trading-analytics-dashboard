@@ -8,8 +8,8 @@ import {
   ResponsiveContainer, CartesianGrid, Cell, ReferenceLine,
 } from 'recharts';
 
-const GREEN = '#22c55e';
-const RED   = '#f43f5e';
+const GREEN = '#10b981';
+const RED = '#f43f5e';
 const AMBER = '#f59e0b';
 
 const axisTick = {
@@ -31,33 +31,33 @@ export default function AdvancedAnalytics({ metrics, trades }) {
     let peak = -Infinity;
     return (metrics.equityCurve || []).map((pt, i) => {
       if (pt.balance > peak) peak = pt.balance;
-      const dd    = peak > 0 ? ((peak - pt.balance) / peak) * 100 : 0;
+      const dd = peak > 0 ? ((peak - pt.balance) / peak) * 100 : 0;
       return { index: i + 1, date: pt.date, drawdown: -dd };
     });
   })();
 
   // ── Direction analysis ──
   const directionStats = (() => {
-    const buys  = (trades || []).filter(t => t.type === 'buy');
+    const buys = (trades || []).filter(t => t.type === 'buy');
     const sells = (trades || []).filter(t => t.type === 'sell');
-    const calc  = (arr) => ({
-      count:   arr.length,
-      wins:    arr.filter(t => t.profit > 0).length,
-      pnl:     arr.reduce((s, t) => s + t.profit, 0),
-      avgPnl:  arr.length ? arr.reduce((s, t) => s + t.profit, 0) / arr.length : 0,
+    const calc = (arr) => ({
+      count: arr.length,
+      wins: arr.filter(t => t.profit > 0).length,
+      pnl: arr.reduce((s, t) => s + t.profit, 0),
+      avgPnl: arr.length ? arr.reduce((s, t) => s + t.profit, 0) / arr.length : 0,
     });
     return { buy: calc(buys), sell: calc(sells) };
   })();
 
   // ── Best / Worst 3 trades ──
   const sortedByProfit = [...(trades || [])].sort((a, b) => b.profit - a.profit);
-  const bestTrades  = sortedByProfit.slice(0, 3);
+  const bestTrades = sortedByProfit.slice(0, 3);
   const worstTrades = sortedByProfit.slice(-3).reverse();
 
   // ── Average Analysis ──
   const totalDays = metrics.calendarData?.length || 1;
   const avgDailyPnL = metrics.totalProfit / totalDays;
-  const totalDur    = (trades || []).reduce((s, t) => s + t.durationMin, 0);
+  const totalDur = (trades || []).reduce((s, t) => s + t.durationMin, 0);
   const avgDuration = trades?.length ? totalDur / trades.length : 0;
 
   return (
@@ -65,7 +65,7 @@ export default function AdvancedAnalytics({ metrics, trades }) {
 
       {/* ── Row 1: Hold Time / Expectancy / Trade Breakdown ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}
-           className="analytics-top-row">
+        className="analytics-top-row">
         <style>{`
           @media (max-width: 900px)  { .analytics-top-row { grid-template-columns: 1fr 1fr !important; } }
           @media (max-width: 600px)  { .analytics-top-row { grid-template-columns: 1fr !important; } }
@@ -150,7 +150,7 @@ export default function AdvancedAnalytics({ metrics, trades }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <InfoBlock label="Gross Profit" value={`$${metrics.grossProfit.toFixed(2)}`} color={GREEN} />
-              <InfoBlock label="Gross Loss"   value={`$${metrics.grossLoss.toFixed(2)}`}  color={RED} />
+              <InfoBlock label="Gross Loss" value={`$${metrics.grossLoss.toFixed(2)}`} color={RED} />
             </div>
           </div>
         </div>
@@ -163,7 +163,7 @@ export default function AdvancedAnalytics({ metrics, trades }) {
           </div>
           <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
-              <CircleBadge count={metrics.wins}   label="Wins"   color={GREEN} />
+              <CircleBadge count={metrics.wins} label="Wins" color={GREEN} />
               <CircleBadge count={metrics.losses} label="Losses" color={RED} />
               {metrics.breakeven > 0 && <CircleBadge count={metrics.breakeven} label="B/E" color="var(--ink-mute)" />}
             </div>
@@ -182,7 +182,7 @@ export default function AdvancedAnalytics({ metrics, trades }) {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <InfoBlock label="Commission" value={`$${metrics.totalCommission.toFixed(2)}`} />
-              <InfoBlock label="Swap"       value={`$${metrics.totalSwap.toFixed(2)}`} />
+              <InfoBlock label="Swap" value={`$${metrics.totalSwap.toFixed(2)}`} />
             </div>
           </div>
         </div>
@@ -205,7 +205,7 @@ export default function AdvancedAnalytics({ metrics, trades }) {
             <AreaChart data={ddCurve} margin={{ top: 8, right: 20, left: 10, bottom: 0 }}>
               <defs>
                 <linearGradient id="ddGrad" x1="0" y1="1" x2="0" y2="0">
-                  <stop offset="0%"   stopColor={RED} stopOpacity={0.25} />
+                  <stop offset="0%" stopColor={RED} stopOpacity={0.25} />
                   <stop offset="100%" stopColor={RED} stopOpacity={0.03} />
                 </linearGradient>
               </defs>
@@ -228,8 +228,8 @@ export default function AdvancedAnalytics({ metrics, trades }) {
                 }}
               />
               <Area type="monotone" dataKey="drawdown" stroke={RED} strokeWidth={1.5}
-                    fill="url(#ddGrad)" animationDuration={800} dot={false}
-                    activeDot={{ r: 4, fill: RED, strokeWidth: 0 }} />
+                fill="url(#ddGrad)" animationDuration={800} dot={false}
+                activeDot={{ r: 4, fill: RED, strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -240,8 +240,8 @@ export default function AdvancedAnalytics({ metrics, trades }) {
         <style>{`@media (max-width: 640px) { .dir-grid { grid-template-columns: 1fr !important; } }`}</style>
 
         {[
-          { label: 'Buy Trades',  stats: directionStats.buy,  color: GREEN, icon: <ArrowUp size={14} /> },
-          { label: 'Sell Trades', stats: directionStats.sell, color: RED,   icon: <ArrowDown size={14} /> },
+          { label: 'Buy Trades', stats: directionStats.buy, color: GREEN, icon: <ArrowUp size={14} /> },
+          { label: 'Sell Trades', stats: directionStats.sell, color: RED, icon: <ArrowDown size={14} /> },
         ].map(({ label, stats, color, icon }) => (
           <div className="card" key={label}>
             <div className="card-header">
@@ -255,10 +255,10 @@ export default function AdvancedAnalytics({ metrics, trades }) {
             </div>
             <div className="card-body">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                <InfoBlock label="Trades"   value={stats.count} />
-                <InfoBlock label="Wins"     value={stats.wins} color={GREEN} />
+                <InfoBlock label="Trades" value={stats.count} />
+                <InfoBlock label="Wins" value={stats.wins} color={GREEN} />
                 <InfoBlock label="Win Rate" value={stats.count ? `${((stats.wins / stats.count) * 100).toFixed(0)}%` : '—'} color={stats.count && stats.wins / stats.count >= 0.5 ? GREEN : RED} />
-                <InfoBlock label="Avg P/L"  value={`${stats.avgPnl >= 0 ? '+' : ''}$${stats.avgPnl.toFixed(2)}`} color={stats.avgPnl >= 0 ? GREEN : RED} />
+                <InfoBlock label="Avg P/L" value={`${stats.avgPnl >= 0 ? '+' : ''}$${stats.avgPnl.toFixed(2)}`} color={stats.avgPnl >= 0 ? GREEN : RED} />
               </div>
             </div>
           </div>
@@ -336,8 +336,8 @@ export default function AdvancedAnalytics({ metrics, trades }) {
                 borderBottom: '1px solid var(--hairline-soft)',
                 transition: 'background 0.12s',
               }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 <span style={{ color: 'var(--ink)', fontWeight: 600 }}>{day.name}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -373,12 +373,12 @@ export default function AdvancedAnalytics({ metrics, trades }) {
         <div className="card-body">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }} className="avg-grid">
             <style>{`@media (max-width: 640px) { .avg-grid { grid-template-columns: 1fr 1fr !important; } }`}</style>
-            <InfoBlock label="Avg Daily P/L"    value={`${avgDailyPnL >= 0 ? '+' : ''}$${avgDailyPnL.toFixed(2)}`}   color={avgDailyPnL >= 0 ? GREEN : RED} />
-            <InfoBlock label="Avg Trade Duration" value={formatDuration(avgDuration)}                                  color="var(--ink)" />
-            <InfoBlock label="Avg Win"           value={`+$${metrics.avgWin.toFixed(2)}`}                             color={GREEN} />
-            <InfoBlock label="Avg Loss"          value={`$${metrics.avgLoss.toFixed(2)}`}                             color={RED} />
-            <InfoBlock label="Avg Vol/Trade"     value={trades?.length ? (trades.reduce((s, t) => s + t.volume, 0) / trades.length).toFixed(2) : '—'} color="var(--ink)" />
-            <InfoBlock label="R:R Ratio"         value={metrics.avgLoss !== 0 ? `${(Math.abs(metrics.avgWin) / Math.abs(metrics.avgLoss)).toFixed(2)}:1` : '∞'} color="var(--ink)" />
+            <InfoBlock label="Avg Daily P/L" value={`${avgDailyPnL >= 0 ? '+' : ''}$${avgDailyPnL.toFixed(2)}`} color={avgDailyPnL >= 0 ? GREEN : RED} />
+            <InfoBlock label="Avg Trade Duration" value={formatDuration(avgDuration)} color="var(--ink)" />
+            <InfoBlock label="Avg Win" value={`+$${metrics.avgWin.toFixed(2)}`} color={GREEN} />
+            <InfoBlock label="Avg Loss" value={`$${metrics.avgLoss.toFixed(2)}`} color={RED} />
+            <InfoBlock label="Avg Vol/Trade" value={trades?.length ? (trades.reduce((s, t) => s + t.volume, 0) / trades.length).toFixed(2) : '—'} color="var(--ink)" />
+            <InfoBlock label="R:R Ratio" value={metrics.avgLoss !== 0 ? `${(Math.abs(metrics.avgWin) / Math.abs(metrics.avgLoss)).toFixed(2)}:1` : '∞'} color="var(--ink)" />
           </div>
         </div>
       </div>
@@ -548,7 +548,7 @@ function CircleBadge({ count, label, color }) {
 }
 
 function formatDuration(min) {
-  if (min < 1)  return `${Math.round(min * 60)}s`;
+  if (min < 1) return `${Math.round(min * 60)}s`;
   if (min < 60) return `${Math.round(min)}m`;
   const h = Math.floor(min / 60);
   const m = Math.round(min % 60);
