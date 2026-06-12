@@ -13,14 +13,16 @@ const RED = '#f43f5e';
 const AMBER = '#f59e0b';
 
 const axisTick = {
-  fill: '#9ca3af', fontSize: 11,
+  fill: '#6b7180', fontSize: 11,
   fontFamily: '"JetBrains Mono", ui-monospace, monospace',
 };
 
 const tipStyle = {
   borderRadius: 8, padding: '10px 14px',
-  background: '#1a1d21', border: '1px solid #2d3035',
-  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+  background: 'rgba(5, 5, 9, 0.92)',
+  border: '1px solid rgba(255,255,255,0.09)',
+  boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
+  backdropFilter: 'blur(20px)',
 };
 
 export default function AdvancedAnalytics({ metrics, trades }) {

@@ -273,8 +273,8 @@ export default function InteractiveCharts({ metrics, trades }) {
 
 /* ── Axis Tick Style ── */
 const axisTick = {
-  fill: '#9ca3af',
-  fontSize: 12,
+  fill: '#6b7180',
+  fontSize: 11,
   fontFamily: '"JetBrains Mono", ui-monospace, monospace',
   fontWeight: 400,
 };
@@ -283,9 +283,10 @@ const axisTick = {
 const tipStyle = {
   borderRadius: 10,
   padding: '12px 16px',
-  background: '#1a1d21',
-  border: '1px solid #2d3035',
-  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+  background: 'rgba(5, 5, 9, 0.92)',
+  border: '1px solid rgba(255,255,255,0.09)',
+  boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
+  backdropFilter: 'blur(20px)',
   minWidth: 180,
 };
 
