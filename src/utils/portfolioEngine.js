@@ -44,14 +44,42 @@ export function fnv1aHash(str) {
  * Centralized currency formatter using Intl.NumberFormat.
  * Avoids hardcoding "$" throughout the dashboard.
  */
-export function formatCurrency(value, currencyCode = 'USD', options = {}) {
+export function formatCurrency(value, currencyCode = null, options = {}) {
   if (value === null || value === undefined || isNaN(value)) {
     return 'N/A';
   }
 
   const num = Number(value);
-  const code = (currencyCode || 'USD').toUpperCase().trim();
   const showSign = options.showSign ?? false;
+  const sign = num < 0 ? '-' : (showSign && num > 0 ? '+' : '');
+
+  // If no currency code or currency is explicitly null/empty/unverified:
+  // Fails closed and never invents a currency symbol (Req #7 & #8)
+  if (!currencyCode) {
+    let minDigits = options.minimumFractionDigits ?? 2;
+    let maxDigits = options.maximumFractionDigits ?? Math.max(minDigits, 2);
+    if (options.maximumFractionDigits !== undefined && options.minimumFractionDigits === undefined) {
+      minDigits = Math.min(minDigits, maxDigits);
+    }
+    if (minDigits > maxDigits) maxDigits = minDigits;
+
+    let formattedNum = '';
+    try {
+      formattedNum = Math.abs(num).toLocaleString('en-US', {
+        minimumFractionDigits: minDigits,
+        maximumFractionDigits: maxDigits,
+      });
+    } catch {
+      formattedNum = Math.abs(num).toFixed(maxDigits);
+    }
+
+    if (options.showUnverifiedLabel) {
+      return `${sign}${formattedNum} (unverified)`;
+    }
+    return `${sign}${formattedNum}`;
+  }
+
+  const code = String(currencyCode).toUpperCase().trim();
   const isJpy = code === 'JPY';
   let minDigits = options.minimumFractionDigits ?? (isJpy ? 0 : 2);
   let maxDigits = options.maximumFractionDigits ?? Math.max(minDigits, isJpy ? 0 : 2);
@@ -80,40 +108,46 @@ export function formatCurrency(value, currencyCode = 'USD', options = {}) {
     }
   }
 
-  const sign = num < 0 ? '-' : (showSign && num > 0 ? '+' : '');
   return `${sign}${formatted}`;
 }
 
 /**
  * Extract normalized account identity, source, and confidence.
  * Guarantees 100% deterministic fallback without Math.random().
+ * Correctly normalizes decorated account strings (Req #13, #14, #15, #16).
  */
 export function extractAccountIdentity(report) {
   const metaAcc = (report.meta?.account || '').trim();
 
   // 1. Authoritative account metadata containing leading digits or digits before paren
   if (metaAcc) {
-    const leadingDigits = metaAcc.match(/^\s*(\d+)/);
-    if (leadingDigits) {
+    const candidateStr = metaAcc.includes('(') ? metaAcc.split('(')[0].trim() : metaAcc;
+    const numMatches = candidateStr.match(/\d+/g) || [];
+
+    // Exactly one clear numeric sequence before parentheses -> normalize to account number
+    // Handles: "100234", "Live-100234", "Account 100234", "Demo#100234" (Req #14)
+    if (numMatches.length === 1) {
       return {
-        normalizedAccountId: leadingDigits[1],
+        normalizedAccountId: numMatches[0],
         accountIdentitySource: 'META_ACCOUNT_NUMBER',
         accountIdentityConfidence: 'HIGH',
       };
     }
-    // Check if there is an account number before parenthesis: e.g. "Live-100234 (USD, ...)"
-    const beforeParen = metaAcc.split('(')[0].trim();
-    if (beforeParen) {
-      const embeddedDigits = beforeParen.match(/\d+/);
-      if (embeddedDigits) {
-        return {
-          normalizedAccountId: beforeParen.replace(/\s+/g, '_'),
-          accountIdentitySource: 'META_ACCOUNT_NUMBER',
-          accountIdentityConfidence: 'HIGH',
-        };
-      }
+
+    // Multiple numeric sequences: ambiguous structure (e.g. "Broker 123 / Login 456")
+    // Fail conservatively to avoid false account merging (Req #15 & #16)
+    if (numMatches.length > 1) {
       return {
-        normalizedAccountId: beforeParen.replace(/\s+/g, '_'),
+        normalizedAccountId: candidateStr.replace(/\s+/g, '_'),
+        accountIdentitySource: 'META_ACCOUNT_STRING',
+        accountIdentityConfidence: 'MEDIUM',
+      };
+    }
+
+    // No digits: use non-numeric candidate string
+    if (candidateStr) {
+      return {
+        normalizedAccountId: candidateStr.replace(/\s+/g, '_'),
         accountIdentitySource: 'META_ACCOUNT_STRING',
         accountIdentityConfidence: 'HIGH',
       };
@@ -122,16 +156,17 @@ export function extractAccountIdentity(report) {
 
   // 2. Fallback to accountKey if explicitly available and not generic
   if (report.accountKey && report.accountKey !== report.fileName) {
-    const keyDigits = String(report.accountKey).match(/\d+/);
-    if (keyDigits) {
+    const keyStr = String(report.accountKey).trim();
+    const keyNums = keyStr.match(/\d+/g) || [];
+    if (keyNums.length === 1) {
       return {
-        normalizedAccountId: keyDigits[0],
+        normalizedAccountId: keyNums[0],
         accountIdentitySource: 'ACCOUNT_KEY',
         accountIdentityConfidence: 'MEDIUM',
       };
     }
     return {
-      normalizedAccountId: String(report.accountKey).trim().replace(/\s+/g, '_'),
+      normalizedAccountId: keyStr.replace(/\s+/g, '_'),
       accountIdentitySource: 'ACCOUNT_KEY',
       accountIdentityConfidence: 'MEDIUM',
     };
@@ -159,37 +194,33 @@ export function extractAccountIdentity(report) {
 
 /**
  * Extract explicit currency authority.
- * Only verified when currency token is explicitly in the MT5 account string.
+ * Only verified when currency token is explicitly in the MT5 account string or explicit property.
+ * CRITICAL: report.meta.currency is NOT trusted because mt5Engine defaults to 'USD' (Req #2, #3, #4).
  */
 export function extractCurrencyAuthority(report) {
-  const metaAcc = report.meta?.account || '';
+  const metaAcc = (report.meta?.account || '').trim();
   const match = metaAcc.match(/\(([A-Za-z]{3})[\s,)]/);
   if (match) {
     return {
       currency: match[1].toUpperCase(),
       currencyVerified: true,
+      currencyAuthoritySource: 'META_ACCOUNT',
     };
   }
 
-  // Also check explicitCurrency property if present
-  if (report.explicitCurrency && typeof report.explicitCurrency === 'string') {
+  // Also check explicitCurrency property if deliberately supplied (Req #5)
+  if (report.explicitCurrency && typeof report.explicitCurrency === 'string' && report.explicitCurrency.trim().length === 3) {
     return {
-      currency: report.explicitCurrency.toUpperCase(),
+      currency: report.explicitCurrency.trim().toUpperCase(),
       currencyVerified: true,
-    };
-  }
-
-  // Also check report.meta.currency if explicitly parsed
-  if (report.meta?.currency && typeof report.meta.currency === 'string' && report.meta.currency.trim().length === 3) {
-    return {
-      currency: report.meta.currency.trim().toUpperCase(),
-      currencyVerified: true,
+      currencyAuthoritySource: 'EXPLICIT_PROPERTY',
     };
   }
 
   return {
     currency: null,
     currencyVerified: false,
+    currencyAuthoritySource: null,
   };
 }
 
@@ -378,6 +409,7 @@ export function buildPortfolioAnalytics(reports = []) {
         identityConfidence: identity.accountIdentityConfidence,
         currency: currencyAuth.currency,
         currencyVerified: currencyAuth.currencyVerified,
+        currencyAuthoritySource: currencyAuth.currencyAuthoritySource,
         reports: [],
         status: 'ELIGIBLE',
         exclusionReason: null,
@@ -392,6 +424,7 @@ export function buildPortfolioAnalytics(reports = []) {
       if (!group.currencyVerified) {
         group.currency = currencyAuth.currency;
         group.currencyVerified = true;
+        group.currencyAuthoritySource = currencyAuth.currencyAuthoritySource;
       } else if (group.currency !== currencyAuth.currency) {
         // Differing currencies across reports for the same account!
         group.status = 'CURRENCY_CONFLICT';
@@ -603,6 +636,7 @@ export function buildPortfolioAnalytics(reports = []) {
   // ── Step 5: Currency Compatibility across eligible accounts ──
   const eligibleAccountGroups = Array.from(accountGroupsMap.values()).filter(g => g.status === 'ELIGIBLE');
   const detectedCurrencies = Array.from(new Set(eligibleAccountGroups.map(g => g.currency).filter(Boolean)));
+  const unverifiedAccounts = eligibleAccountGroups.filter(g => !g.currencyVerified);
   const currencyIssues = [];
   let monetaryAggregationEligible = true;
   let portfolioCurrency = null;
@@ -612,10 +646,9 @@ export function buildPortfolioAnalytics(reports = []) {
     currencyIssues.push('No eligible accounts available for aggregation.');
   } else {
     // Check for unverified currency
-    const unverified = eligibleAccountGroups.filter(g => !g.currencyVerified);
-    if (unverified.length > 0) {
+    if (unverifiedAccounts.length > 0) {
       monetaryAggregationEligible = false;
-      const unverifiedNames = unverified.map(g => g.accountLabel).join(', ');
+      const unverifiedNames = unverifiedAccounts.map(g => g.accountLabel).join(', ');
       currencyIssues.push(`Unverified currency authority for account(s): ${unverifiedNames}.`);
       warnings.push(`Monetary portfolio aggregation unavailable: Currency could not be authoritatively verified for ${unverifiedNames}.`);
     }
@@ -625,7 +658,7 @@ export function buildPortfolioAnalytics(reports = []) {
       monetaryAggregationEligible = false;
       currencyIssues.push(`Mixed currencies detected: ${detectedCurrencies.join(', ')}.`);
       warnings.push(`Monetary portfolio aggregation unavailable. Mixed currencies detected: ${detectedCurrencies.join(', ')}.`);
-    } else if (detectedCurrencies.length === 1 && unverified.length === 0) {
+    } else if (detectedCurrencies.length === 1 && unverifiedAccounts.length === 0) {
       portfolioCurrency = detectedCurrencies[0];
     } else if (detectedCurrencies.length === 0) {
       monetaryAggregationEligible = false;
@@ -885,7 +918,13 @@ export function buildPortfolioAnalytics(reports = []) {
         balanceBasis = 'BALANCE_BASIS_CONFLICT';
         warnings.push(`Account ${group.accountId} balance basis conflict: reports share latest coverage end (${maxCovEnd ? formatDateKey(new Date(maxCovEnd)) : 'N/A'}) but report conflicting ending balances (${minBal} vs ${maxBal}).`);
       } else {
-        // Deterministic selection: candidates agree
+        // Deterministic selection: candidates agree (Req #17 & #18)
+        // Sort tied candidates deterministically by fileName, then reportId so upload order never changes authority
+        latestCandidates.sort((a, b) => {
+          const fileComp = String(a.fileName ?? '').localeCompare(String(b.fileName ?? ''));
+          if (fileComp !== 0) return fileComp;
+          return String(a.reportId ?? '').localeCompare(String(b.reportId ?? ''));
+        });
         const authoritativeReport = latestCandidates[0];
         endingBalanceAuthorityReportId = authoritativeReport.reportId;
         const endingBalance = authoritativeReport.balance;
@@ -955,6 +994,7 @@ export function buildPortfolioAnalytics(reports = []) {
       sourceReports: sourceReportsList,
       currency: group.currency,
       currencyVerified: group.currencyVerified,
+      currencyAuthoritySource: group.currencyAuthoritySource || null,
       identitySource: group.identitySource,
       identityConfidence: group.identityConfidence,
       status: group.status,
@@ -975,20 +1015,24 @@ export function buildPortfolioAnalytics(reports = []) {
     });
   }
 
-  // Account Contribution: signed Net P/L
-  const contribution = accountSummaries
-    .filter(a => a.status === 'ELIGIBLE')
-    .map(a => ({
-      accountId: a.accountId,
-      accountLabel: a.accountLabel,
-      netPnL: a.netPnL,
-      tradingPnL: a.tradingPnL,
-      tradeCount: a.tradeCount,
-      returnPct: a.returnPct,
-      currency: a.currency,
-      isEligible: true,
-    }))
-    .sort((a, b) => b.netPnL - a.netPnL);
+  // Account Contribution: signed Net P/L (Only available when monetary aggregation is eligible - Req #6)
+  const contribution = monetaryAggregationEligible
+    ? accountSummaries
+        .filter(a => a.status === 'ELIGIBLE')
+        .map(a => ({
+          accountId: a.accountId,
+          accountLabel: a.accountLabel,
+          netPnL: a.netPnL,
+          tradingPnL: a.tradingPnL,
+          tradeCount: a.tradeCount,
+          returnPct: a.returnPct,
+          currency: a.currency,
+          currencyVerified: a.currencyVerified,
+          currencyAuthoritySource: a.currencyAuthoritySource,
+          isEligible: true,
+        }))
+        .sort((a, b) => b.netPnL - a.netPnL)
+    : [];
 
   // Total raw trades count
   let totalRawTrades = 0;
@@ -1038,6 +1082,9 @@ export function buildPortfolioAnalytics(reports = []) {
     currency: portfolioCurrency,
     currenciesDetected: detectedCurrencies,
     currencyIssues,
+    currencyAuthoritySource: (eligibleAccountGroups.length > 0 && detectedCurrencies.length === 1 && unverifiedAccounts.length === 0)
+      ? eligibleAccountGroups[0].currencyAuthoritySource
+      : null,
     accountConflicts: [],
     timezoneConflicts,
     tradeConflicts,

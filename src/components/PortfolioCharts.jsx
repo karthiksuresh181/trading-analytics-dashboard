@@ -46,7 +46,7 @@ export default function PortfolioCharts({ portfolioData }) {
 
   const { timeline, dailyPnL, monthlyPnL, contribution, normalizedComparison, compatibility } = portfolioData;
   const isEligible = compatibility.monetaryAggregationEligible;
-  const curr = compatibility.currency || 'USD';
+  const curr = compatibility.currency || null;
 
   // Prepare normalized comparison data combined by timestamp/date for Recharts multi-line
   const combinedNormalizedData = useMemo(() => {
@@ -97,7 +97,9 @@ export default function PortfolioCharts({ portfolioData }) {
             </div>
           </div>
           <p className="portfolio-alert-msg">
-            Mixed currencies detected ({compatibility.currenciesDetected.join(', ')}). Absolute monetary P/L charts (Cumulative Net P/L, Daily Net P/L, Monthly Net P/L) cannot be mathematically aggregated without FX conversion. Normalized account comparisons remain available below where balance bases are valid.
+            {compatibility.currencyIssues && compatibility.currencyIssues.length > 0
+              ? compatibility.currencyIssues.join(' ')
+              : 'Currency could not be authoritatively verified across reports.'} Absolute monetary P/L charts (Cumulative Net P/L, Daily Net P/L, Monthly Net P/L) cannot be mathematically aggregated without verified currency. Normalized account comparisons remain available below where balance bases are valid.
           </p>
         </div>
       )}

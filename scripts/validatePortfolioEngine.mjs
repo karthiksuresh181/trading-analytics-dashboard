@@ -707,6 +707,177 @@ runTest('Currency Formatter — USD, EUR, GBP, JPY verification', () => {
   // Zero-fraction digits option (e.g. integer charts / axes)
   assert.strictEqual(formatCurrency(1250, 'USD', { maximumFractionDigits: 0 }), '$1,250');
   assert.strictEqual(formatCurrency(1250, 'EUR', { maximumFractionDigits: 0 }), '€1,250');
+
+  // Verify formatCurrency with null/unverified currency fails closed and does NOT produce $ (Req #8)
+  const unverifiedFmt = formatCurrency(1234, null);
+  assert.strictEqual(unverifiedFmt, '1,234.00');
+  assert.ok(!unverifiedFmt.includes('$'), 'formatCurrency with null currency must not produce $');
+
+  const unverifiedNegative = formatCurrency(-500.5, null);
+  assert.strictEqual(unverifiedNegative, '-500.50');
+  assert.ok(!unverifiedNegative.includes('$'), 'formatCurrency with null currency must not produce $');
+});
+
+// ── Case 19: Frozen-parser default USD is NOT currency authority (Req #10) ──
+runTest('Case 19 — Frozen-parser default USD is NOT currency authority', () => {
+  const rep = {
+    id: 'rep_case19',
+    fileName: 'Report_DefaultUSD.html',
+    meta: {
+      account: '12345',
+      currency: 'USD', // Parser default!
+    },
+    trades: [],
+  };
+  const auth = extractCurrencyAuthority(rep);
+  assert.strictEqual(auth.currencyVerified, false);
+  assert.strictEqual(auth.currency, null);
+  assert.strictEqual(auth.currencyAuthoritySource, null);
+
+  const res = buildPortfolioAnalytics([rep]);
+  assert.strictEqual(res.accounts[0].currencyVerified, false);
+  assert.strictEqual(res.accounts[0].currency, null);
+  assert.strictEqual(res.accounts[0].currencyAuthoritySource, null);
+});
+
+// ── Case 20: Two parser-default USD accounts cannot aggregate money (Req #11) ──
+runTest('Case 20 — Two parser-default USD accounts cannot aggregate money', () => {
+  const repA = {
+    id: 'rep_20a',
+    fileName: 'AccA.html',
+    meta: { account: '12345', currency: 'USD' },
+    trades: [
+      { id: 1, ticket: 101, symbol: 'EURUSD', type: 'buy', openTime: '2026-03-01 10:00:00', closeTime: '2026-03-01 12:00:00', profit: 100, commission: 0, swap: 0 },
+    ],
+  };
+  const repB = {
+    id: 'rep_20b',
+    fileName: 'AccB.html',
+    meta: { account: '67890', currency: 'USD' },
+    trades: [
+      { id: 2, ticket: 102, symbol: 'GBPUSD', type: 'buy', openTime: '2026-03-02 10:00:00', closeTime: '2026-03-02 12:00:00', profit: 200, commission: 0, swap: 0 },
+    ],
+  };
+
+  const res = buildPortfolioAnalytics([repA, repB]);
+  assert.strictEqual(res.compatibility.monetaryAggregationEligible, false);
+  assert.strictEqual(res.compatibility.currency, null);
+  assert.strictEqual(res.metrics.monetaryAggregationEligible, false);
+  assert.strictEqual(res.metrics.currency, null);
+  assert.strictEqual(res.metrics.netPnL, null);
+  assert.strictEqual(res.metrics.tradingPnL, null);
+  assert.strictEqual(res.metrics.portfolioPF, null);
+  assert.strictEqual(res.metrics.maxPortfolioPnLDrawdown, null);
+
+  // Trade count and win rate remain active
+  assert.strictEqual(res.metrics.totalTrades, 2);
+  assert.strictEqual(res.metrics.winRate, 100);
+});
+
+// ── Case 21: Explicit Account currency remains authoritative (Req #12) ──
+runTest('Case 21 — Explicit Account currency remains authoritative', () => {
+  const repUSD = {
+    id: 'rep_21_usd',
+    fileName: 'USD.html',
+    meta: { account: '12345 (USD, Broker, real)' },
+    trades: [],
+  };
+  const authUSD = extractCurrencyAuthority(repUSD);
+  assert.strictEqual(authUSD.currencyVerified, true);
+  assert.strictEqual(authUSD.currency, 'USD');
+  assert.strictEqual(authUSD.currencyAuthoritySource, 'META_ACCOUNT');
+
+  const repEUR = {
+    id: 'rep_21_eur',
+    fileName: 'EUR.html',
+    meta: { account: '67890 (EUR, Broker, demo)' },
+    trades: [],
+  };
+  const authEUR = extractCurrencyAuthority(repEUR);
+  assert.strictEqual(authEUR.currencyVerified, true);
+  assert.strictEqual(authEUR.currency, 'EUR');
+  assert.strictEqual(authEUR.currencyAuthoritySource, 'META_ACCOUNT');
+});
+
+// ── Case 22: Decorated account number normalization (Req #13, #14, #15, #16) ──
+runTest('Case 22 — Decorated account number normalization', () => {
+  const rep1 = { meta: { account: '100234 (USD, Broker)' } };
+  const rep2 = { meta: { account: 'Live-100234 (USD, Broker)' } };
+  const rep3 = { meta: { account: 'Account 100234 (USD, Broker)' } };
+
+  const id1 = extractAccountIdentity(rep1);
+  const id2 = extractAccountIdentity(rep2);
+  const id3 = extractAccountIdentity(rep3);
+
+  assert.strictEqual(id1.normalizedAccountId, '100234');
+  assert.strictEqual(id2.normalizedAccountId, '100234');
+  assert.strictEqual(id3.normalizedAccountId, '100234');
+
+  assert.strictEqual(id1.accountIdentitySource, 'META_ACCOUNT_NUMBER');
+  assert.strictEqual(id2.accountIdentitySource, 'META_ACCOUNT_NUMBER');
+  assert.strictEqual(id3.accountIdentitySource, 'META_ACCOUNT_NUMBER');
+
+  assert.strictEqual(id1.accountIdentityConfidence, 'HIGH');
+  assert.strictEqual(id2.accountIdentityConfidence, 'HIGH');
+  assert.strictEqual(id3.accountIdentityConfidence, 'HIGH');
+
+  // Ambiguous account string with multiple numbers must NOT merge with 100234 or arbitrarily pick 123
+  const repAmbig = { meta: { account: 'Broker 123 / Login 456 (USD, Broker)' } };
+  const idAmbig = extractAccountIdentity(repAmbig);
+  assert.notStrictEqual(idAmbig.normalizedAccountId, '100234');
+  assert.notStrictEqual(idAmbig.normalizedAccountId, '123');
+  assert.notStrictEqual(idAmbig.normalizedAccountId, '456');
+  assert.strictEqual(idAmbig.normalizedAccountId, 'Broker_123_/_Login_456');
+  assert.strictEqual(idAmbig.accountIdentityConfidence, 'MEDIUM');
+});
+
+// ── Case 23: Ending-balance authority tie is deterministic (Req #17 & #18) ──
+runTest('Case 23 — Ending-balance authority tie is deterministic', () => {
+  const tradeShared = {
+    id: 1,
+    ticket: 101,
+    symbol: 'EURUSD',
+    type: 'buy',
+    volume: 1.0,
+    openTime: '2026-03-01 10:00:00',
+    closeTime: '2026-03-01 12:00:00',
+    openPrice: 1.085,
+    closePrice: 1.090,
+    profit: 50,
+    commission: 0,
+    swap: 0,
+  };
+
+  const repA = {
+    id: 'rep_tie_A',
+    fileName: 'Report_A.html',
+    htmlContent: '<html>Report A</html>',
+    meta: { account: '99001 (USD)' },
+    reportStats: { balance: 10000 },
+    timezoneOffset: 2,
+    trades: [tradeShared],
+  };
+
+  const repB = {
+    id: 'rep_tie_B',
+    fileName: 'Report_B.html',
+    htmlContent: '<html>Report B</html>',
+    meta: { account: '99001 (USD)' },
+    reportStats: { balance: 10000 },
+    timezoneOffset: 2,
+    trades: [tradeShared],
+  };
+
+  const resOrder1 = buildPortfolioAnalytics([repA, repB]);
+  const resOrder2 = buildPortfolioAnalytics([repB, repA]);
+
+  // Both permutations must select the exact same endingBalanceAuthorityReportId
+  assert.strictEqual(
+    resOrder1.accounts[0].endingBalanceAuthorityReportId,
+    resOrder2.accounts[0].endingBalanceAuthorityReportId
+  );
+  assert.strictEqual(resOrder1.accounts[0].estimatedStartBalance, resOrder2.accounts[0].estimatedStartBalance);
+  assert.strictEqual(resOrder1.accounts[0].returnPct, resOrder2.accounts[0].returnPct);
 });
 
 console.log(`\nAll ${passedTests}/${totalTests} tests passed successfully!\n`);

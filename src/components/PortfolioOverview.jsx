@@ -28,7 +28,7 @@ export default function PortfolioOverview({
 
   const { metrics, compatibility, accounts, contribution, warnings } = portfolioData;
   const isEligible = compatibility.monetaryAggregationEligible;
-  const curr = compatibility.currency || 'USD';
+  const curr = compatibility.currency || null;
 
   // Sort account rows
   const sortedAccounts = useMemo(() => {
@@ -416,8 +416,8 @@ export default function PortfolioOverview({
 
                     {/* Currency */}
                     <td>
-                      <span className="badge-currency" title={acc.currencyVerified ? 'Authoritative MT5 Currency' : 'Unverified Currency'}>
-                        {acc.currency || 'N/A'}
+                      <span className={`badge-currency${!acc.currencyVerified ? ' badge-unverified' : ''}`} title={acc.currencyVerified ? `Authoritative Currency (${acc.currencyAuthoritySource || 'Verified'})` : 'Currency could not be authoritatively verified from report'}>
+                        {acc.currencyVerified ? acc.currency : 'Unverified'}
                       </span>
                     </td>
 
@@ -436,11 +436,11 @@ export default function PortfolioOverview({
                       {acc.tradeCount}
                     </td>
 
-                    {/* Net P/L: Formatted using each account's own currency (Req #12) */}
+                    {/* Net P/L: Formatted using each account's own currency (Req #12 & #7) */}
                     <td className="text-right font-mono font-semibold">
                       {isAccEligible ? (
-                        <span className={isPositive ? 'text-positive' : 'text-negative'}>
-                          {formatCurrency(acc.netPnL, accCurrency, { showSign: true })}
+                        <span className={isPositive ? 'text-positive' : 'text-negative'} title={acc.currencyVerified ? undefined : 'Monetary value (currency unverified)'}>
+                          {formatCurrency(acc.netPnL, acc.currencyVerified ? acc.currency : null, { showSign: true })}
                         </span>
                       ) : (
                         <span className="text-muted">Excluded</span>

@@ -274,6 +274,12 @@ export default function App() {
       <button id="btn-scenario-multi" type="button" className="btn btn-xs" onClick={() => handleLoadScenario('multi')}>
         Multi-Report Merged
       </button>
+      <button id="btn-scenario-unknown" type="button" className="btn btn-xs" onClick={() => handleLoadScenario('unknown')}>
+        Unknown Currency
+      </button>
+      <button id="btn-scenario-decorated" type="button" className="btn btn-xs" onClick={() => handleLoadScenario('decorated')}>
+        Decorated IDs
+      </button>
       {reports.length > 0 && (
         <button id="btn-scenario-clear" type="button" className="btn btn-xs btn-secondary" onClick={() => { setReports([]); setScope('report'); }}>
           Clear

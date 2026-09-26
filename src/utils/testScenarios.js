@@ -26,10 +26,10 @@ function makeSyntheticReport({ id, fileName, account, name, currency, balance, t
       balance,
     },
     trades: trades.map((t, idx) => ({
-      id: idx + 1,
+      id: t.id || t.ticket || (10000 + idx),
       ticket: t.ticket || (10000 + idx),
-      order: t.ticket || (10000 + idx),
-      position: t.ticket || (10000 + idx),
+      order: t.order || t.ticket || (10000 + idx),
+      position: t.position || t.ticket || (10000 + idx),
       symbol: t.symbol || 'EURUSD',
       type: t.type || 'buy',
       volume: t.volume || 1.0,
@@ -187,6 +187,85 @@ export const DEV_SCENARIOS = {
       trades: [
         { ticket: 801, symbol: 'AUDUSD', type: 'buy', volume: 1.5, openTime: '2026-02-15 10:00:00', closeTime: '2026-02-15 16:00:00', profit: 320, commission: -7, swap: 0 },
         { ticket: 802, symbol: 'NZDUSD', type: 'buy', volume: 1.0, openTime: '2026-03-10 11:00:00', closeTime: '2026-03-10 17:00:00', profit: 240, commission: -5, swap: -1 },
+      ],
+    }),
+  ],
+
+  unknown: [
+    {
+      id: 'rep_unverified_1',
+      fileName: 'Acc_12345_Unverified.html',
+      accountKey: '12345',
+      meta: {
+        account: '12345', // No explicit currency in account string
+        name: 'Account 12345',
+        currency: 'USD',  // Parser default fallback
+        date: '2026-03-31',
+      },
+      reportStats: { closedTradesCount: 2, balance: 10450 },
+      trades: [
+        { id: 1, ticket: 901, symbol: 'EURUSD', type: 'buy', volume: 1.0, openTime: '2026-03-02 10:00:00', closeTime: '2026-03-02 15:00:00', profit: 300, commission: -6, swap: -1, netProfit: 293 },
+        { id: 2, ticket: 902, symbol: 'GBPUSD', type: 'sell', volume: 1.0, openTime: '2026-03-10 11:00:00', closeTime: '2026-03-10 16:00:00', profit: 160, commission: -5, swap: 0, netProfit: 155 },
+      ],
+      metrics: { netProfit: 448, totalTrades: 2, winRate: 100, profitFactor: 99.99 },
+      timezoneOffset: 2,
+      htmlContent: '<html><body>Acc 12345</body></html>',
+      importedAt: Date.now(),
+    },
+    {
+      id: 'rep_unverified_2',
+      fileName: 'Acc_67890_Unverified.html',
+      accountKey: '67890',
+      meta: {
+        account: '67890', // No explicit currency in account string
+        name: 'Account 67890',
+        currency: 'USD',  // Parser default fallback
+        date: '2026-03-31',
+      },
+      reportStats: { closedTradesCount: 2, balance: 20600 },
+      trades: [
+        { id: 1, ticket: 903, symbol: 'AUDUSD', type: 'buy', volume: 1.5, openTime: '2026-03-05 09:00:00', closeTime: '2026-03-05 14:00:00', profit: 420, commission: -8, swap: -2, netProfit: 410 },
+        { id: 2, ticket: 904, symbol: 'USDJPY', type: 'buy', volume: 1.0, openTime: '2026-03-12 10:00:00', closeTime: '2026-03-12 17:00:00', profit: 210, commission: -5, swap: -1, netProfit: 204 },
+      ],
+      metrics: { netProfit: 614, totalTrades: 2, winRate: 100, profitFactor: 99.99 },
+      timezoneOffset: 2,
+      htmlContent: '<html><body>Acc 67890</body></html>',
+      importedAt: Date.now(),
+    },
+  ],
+
+  decorated: [
+    makeSyntheticReport({
+      id: 'rep_dec_1',
+      fileName: 'A100_Standard.html',
+      account: '100234 (USD, MetaQuotes, real)',
+      name: 'Alpha Prime',
+      currency: 'USD',
+      balance: 10500,
+      trades: [
+        { ticket: 1001, symbol: 'EURUSD', type: 'buy', volume: 1.0, openTime: '2026-02-01 10:00:00', closeTime: '2026-02-01 15:00:00', profit: 250, commission: -5, swap: -1 },
+      ],
+    }),
+    makeSyntheticReport({
+      id: 'rep_dec_2',
+      fileName: 'A100_LivePrefix.html',
+      account: 'Live-100234 (USD, MetaQuotes, real)',
+      name: 'Alpha Prime',
+      currency: 'USD',
+      balance: 10800,
+      trades: [
+        { ticket: 1002, symbol: 'GBPUSD', type: 'sell', volume: 1.0, openTime: '2026-02-10 11:00:00', closeTime: '2026-02-10 16:00:00', profit: 310, commission: -6, swap: 0 },
+      ],
+    }),
+    makeSyntheticReport({
+      id: 'rep_dec_3',
+      fileName: 'A100_AccountPrefix.html',
+      account: 'Account 100234 (USD, MetaQuotes, real)',
+      name: 'Alpha Prime',
+      currency: 'USD',
+      balance: 11200,
+      trades: [
+        { ticket: 1003, symbol: 'USDJPY', type: 'buy', volume: 1.2, openTime: '2026-02-20 09:00:00', closeTime: '2026-02-20 17:00:00', profit: 420, commission: -8, swap: -2 },
       ],
     }),
   ],
