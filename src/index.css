@@ -978,6 +978,54 @@ body {
   margin-bottom: 16px;
 }
 
+/* Detailed Batch Failure Error Card */
+.upload-batch-error-card {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--negative-border);
+  background: var(--negative-soft);
+  padding: 16px;
+  margin-bottom: 20px;
+  animation: fadeUp 0.25s ease forwards;
+}
+
+.upload-batch-error-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.upload-batch-error-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-left: 28px;
+}
+
+.upload-batch-error-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  background: rgba(11, 15, 23, 0.5);
+  border: 1px solid rgba(251, 113, 133, 0.2);
+  border-radius: var(--radius-xs);
+}
+
+.upload-batch-error-filename {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.upload-batch-error-reason {
+  font-size: 0.75rem;
+  color: var(--negative);
+}
+
 /* Feature grid */
 .upload-features {
   display: grid;

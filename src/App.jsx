@@ -22,6 +22,107 @@ const TABS = [
   { id: 'history',  label: 'History',    icon: ClipboardList   },
 ];
 
+// Strictly development-only test harness (active only in local dev when ?__test=1 is provided)
+function DevTestHarness({ onFilesLoaded }) {
+  if (!import.meta.env.DEV) return null;
+  const isEnabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('__test') === '1';
+  if (!isEnabled) return null;
+
+  const loadUrls = async (urls) => {
+    const successful = [];
+    const failed = [];
+    for (const url of urls) {
+      const name = url.split('/').pop();
+      try {
+        const res = await fetch(url);
+        const text = await res.text();
+        const { trades, meta, reportStats } = parseMT5Report(text, 2);
+        if (!trades || trades.length === 0) {
+          failed.push({ fileName: name, error: 'No valid closed trade positions or deals found in report.' });
+          continue;
+        }
+        const metrics = computeAllMetrics(trades, reportStats);
+        successful.push({
+          id: `rep_${name.replace(/\.[^/.]+$/, '')}`,
+          fileName: name,
+          accountKey: meta.account || meta.name || name,
+          meta,
+          reportStats,
+          trades,
+          metrics,
+          timezoneOffset: 2,
+          htmlContent: text,
+          importedAt: Date.now(),
+        });
+      } catch (err) {
+        failed.push({ fileName: name, error: err.message || 'Corrupt or incompatible MT5 report format.' });
+      }
+    }
+    onFilesLoaded(successful, failed);
+  };
+
+  return (
+    <div
+      id="dev-test-harness"
+      style={{
+        position: 'fixed',
+        bottom: 8,
+        right: 8,
+        zIndex: 9999,
+        background: '#1e293b',
+        border: '1px solid #475569',
+        borderRadius: 6,
+        padding: '6px 10px',
+        display: 'flex',
+        gap: 6,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+      }}
+    >
+      <button
+        id="btn-test-5-reports"
+        type="button"
+        className="btn btn-sm"
+        style={{ fontSize: '0.6875rem', padding: '3px 7px' }}
+        onClick={() =>
+          loadUrls([
+            '/test-reports/A026.html',
+            '/test-reports/A095.html',
+            '/test-reports/A109.html',
+            '/test-reports/A155.html',
+            '/test-reports/A160.html',
+          ])
+        }
+      >
+        Load 5 Test Reports
+      </button>
+      <button
+        id="btn-test-partial-fail"
+        type="button"
+        className="btn btn-sm"
+        style={{ fontSize: '0.6875rem', padding: '3px 7px' }}
+        onClick={() => loadUrls(['/test-reports/A026.html', '/test-reports/corrupt.html'])}
+      >
+        Test Partial Fail
+      </button>
+      <button
+        id="btn-test-complete-fail"
+        type="button"
+        className="btn btn-sm btn-danger"
+        style={{ fontSize: '0.6875rem', padding: '3px 7px' }}
+        onClick={() =>
+          loadUrls([
+            '/test-reports/corrupt.html',
+            '/test-reports/invalid2.html',
+            '/test-reports/invalid3.html',
+          ])
+        }
+      >
+        Test Complete Fail
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   // Multi-report state collection
   const [reports, setReports] = useState([]);
@@ -98,61 +199,6 @@ export default function App() {
     }
   }, [reports]);
 
-  // Batch demo reports loader (loads all 5 test reports)
-  const handleLoadBatchDemo = useCallback(async (timezoneOffset = 2) => {
-    try {
-      const testFiles = [
-        { url: '/test-reports/A026.html', name: 'A026.html' },
-        { url: '/test-reports/A095.html', name: 'A095.html' },
-        { url: '/test-reports/A109.html', name: 'A109.html' },
-        { url: '/test-reports/A155.html', name: 'A155.html' },
-        { url: '/test-reports/A160.html', name: 'A160.html' },
-      ];
-
-      const loaded = [];
-      for (const item of testFiles) {
-        const res = await fetch(item.url);
-        if (res.ok) {
-          const text = await res.text();
-          const { trades, meta, reportStats } = parseMT5Report(text, timezoneOffset);
-          const metrics = computeAllMetrics(trades, reportStats);
-          loaded.push({
-            id: `rep_${item.name.replace(/\.[^/.]+$/, '')}`,
-            fileName: item.name,
-            accountKey: meta.account || meta.name || item.name,
-            meta,
-            reportStats,
-            trades,
-            metrics,
-            timezoneOffset,
-            htmlContent: text,
-            importedAt: Date.now(),
-          });
-        }
-      }
-
-      if (loaded.length > 0) {
-        setReports(prev => {
-          const existingIds = new Set(prev.map(r => r.id));
-          const newUnique = loaded.filter(r => !existingIds.has(r.id));
-          return [...prev, ...newUnique];
-        });
-        setActiveReportId(loaded[0].id);
-        setIsAddModalOpen(false);
-      }
-    } catch (err) {
-      console.error('Failed to load batch demo reports:', err);
-      alert('Could not load test batch reports.');
-    }
-  }, []);
-
-  // Check URL query parameters for test automation
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('loadTestBatch') === '1') {
-      handleLoadBatchDemo(2);
-    }
-  }, [handleLoadBatchDemo]);
 
   // Timezone adjustment for active report (isolated per report)
   const handleActiveTimezoneChange = useCallback((newOffset) => {
@@ -255,13 +301,16 @@ export default function App() {
   // If no reports are loaded, show empty state (file uploader)
   if (reports.length === 0 || !activeReport) {
     return (
-      <FileUploader
-        onFilesLoaded={handleFilesLoaded}
-        onLoadDemo={handleLoadDemo}
-        onLoadBatchDemo={handleLoadBatchDemo}
-        isModal={false}
-        existingReportsCount={0}
-      />
+      <>
+        <FileUploader
+          onFilesLoaded={handleFilesLoaded}
+          onLoadDemo={handleLoadDemo}
+          isModal={false}
+          existingReportsCount={0}
+          initialErrors={importErrors}
+        />
+        <DevTestHarness onFilesLoaded={handleFilesLoaded} />
+      </>
     );
   }
 
@@ -486,7 +535,6 @@ export default function App() {
         <FileUploader
           onFilesLoaded={handleFilesLoaded}
           onLoadDemo={handleLoadDemo}
-          onLoadBatchDemo={handleLoadBatchDemo}
           isModal={true}
           onClose={() => setIsAddModalOpen(false)}
           existingReportsCount={reports.length}
@@ -503,6 +551,9 @@ export default function App() {
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
       />
+
+      {/* Dev-only test harness */}
+      <DevTestHarness onFilesLoaded={handleFilesLoaded} />
     </div>
   );
 }

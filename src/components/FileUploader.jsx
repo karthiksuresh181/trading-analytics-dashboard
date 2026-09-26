@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Upload, FileText, Zap, AlertCircle, Globe, X, Layers, CheckCircle2 } from 'lucide-react';
 import { parseMT5Report, computeAllMetrics } from '../utils/mt5Engine';
 import { TIMEZONE_OPTIONS } from '../constants/timezone';
@@ -15,12 +15,21 @@ export default function FileUploader({
   isModal = false,
   onClose,
   existingReportsCount = 0,
+  initialErrors = [],
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState('');
+  const [batchErrors, setBatchErrors] = useState(initialErrors);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
   const [timezoneOffset, setTimezoneOffset] = useState(2);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (initialErrors && initialErrors.length > 0) {
+      setBatchErrors(initialErrors);
+    }
+  }, [initialErrors]);
 
   const processFiles = useCallback(async (fileList) => {
     if (!fileList || fileList.length === 0) return;
@@ -28,6 +37,7 @@ export default function FileUploader({
     const files = Array.from(fileList);
     setIsLoading(true);
     setError('');
+    setBatchErrors([]);
     setLoadingStatus(`Reading ${files.length} report${files.length > 1 ? 's' : ''}…`);
 
     const successful = [];
@@ -85,33 +95,38 @@ export default function FileUploader({
     setIsLoading(false);
     setLoadingStatus('');
 
-    if (successful.length === 0 && failed.length > 0) {
-      setError(`Failed to import all ${failed.length} file(s). Please verify MT5 HTML format.`);
+    // Reset input value to allow immediate retry with the same file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
 
-    if (successful.length > 0 || failed.length > 0) {
+    if (successful.length === 0 && failed.length > 0) {
+      setBatchErrors(failed);
+    } else if (successful.length > 0) {
       onFilesLoaded(successful, failed);
-      if (isModal && successful.length > 0) {
+      if (isModal) {
         onClose?.();
       }
     }
   }, [timezoneOffset, onFilesLoaded, isModal, onClose]);
 
-  // Hook for testing multi-file loading in automated test suites
+  // Expose dev-only automated test helper strictly in development mode
   useEffect(() => {
-    window.__mt5LoadTestFiles = async (fileUrls) => {
-      const files = [];
-      for (const url of fileUrls) {
-        const res = await fetch(url);
-        const text = await res.text();
-        const name = url.split('/').pop();
-        files.push(new File([text], name, { type: 'text/html' }));
-      }
-      return processFiles(files);
-    };
-    return () => {
-      delete window.__mt5LoadTestFiles;
-    };
+    if (import.meta.env.DEV) {
+      window.__mt5LoadTestFiles = async (fileUrls) => {
+        const files = [];
+        for (const url of fileUrls) {
+          const res = await fetch(url);
+          const text = await res.text();
+          const name = url.split('/').pop();
+          files.push(new File([text], name, { type: 'text/html' }));
+        }
+        return processFiles(files);
+      };
+      return () => {
+        delete window.__mt5LoadTestFiles;
+      };
+    }
   }, [processFiles]);
 
   const handleDrop = useCallback((e) => {
@@ -131,7 +146,11 @@ export default function FileUploader({
   }, []);
 
   const handleChange = useCallback((e) => {
-    processFiles(e.target.files);
+    if (e.target.files && e.target.files.length > 0) {
+      processFiles(e.target.files);
+    }
+    // Reset file input value so selecting the same file again fires onChange
+    e.target.value = '';
   }, [processFiles]);
 
   const handleLoadDemoClick = async (e) => {
@@ -139,6 +158,8 @@ export default function FileUploader({
     e.stopPropagation();
     setIsLoading(true);
     setLoadingStatus('Loading demo report…');
+    setError('');
+    setBatchErrors([]);
     try {
       if (onLoadDemo) {
         await onLoadDemo(timezoneOffset);
@@ -250,10 +271,10 @@ export default function FileUploader({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        onClick={() => !isLoading && document.getElementById(isModal ? 'mt5-file-input-modal' : 'mt5-file-input-main').click()}
+        onClick={() => !isLoading && fileInputRef.current?.click()}
       >
         <input
-          id={isModal ? 'mt5-file-input-modal' : 'mt5-file-input-main'}
+          ref={fileInputRef}
           type="file"
           accept=".html,.htm"
           multiple
@@ -297,7 +318,40 @@ export default function FileUploader({
         )}
       </div>
 
-      {/* ── Error Notice ── */}
+      {/* ── Detailed Batch Failure Error Display ── */}
+      {batchErrors.length > 0 && (
+        <div className="upload-batch-error-card">
+          <div className="upload-batch-error-header">
+            <AlertCircle size={16} style={{ color: 'var(--negative)', flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1 }}>
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>
+                {batchErrors.length} {batchErrors.length === 1 ? 'report' : 'reports'} could not be imported
+              </span>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: 2 }}>
+                Please ensure your files are valid MetaTrader 5 HTML trade reports.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-icon btn-sm"
+              onClick={() => setBatchErrors([])}
+              title="Dismiss error list"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          <div className="upload-batch-error-list">
+            {batchErrors.map((err, idx) => (
+              <div key={idx} className="upload-batch-error-item">
+                <span className="upload-batch-error-filename">{err.fileName}</span>
+                <span className="upload-batch-error-reason">{err.error}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Generic Single Error Notice ── */}
       {error && (
         <div className="upload-error" style={{ marginBottom: 14 }}>
           <AlertCircle size={15} style={{ color: 'var(--negative)', flexShrink: 0 }} />
@@ -330,23 +384,7 @@ export default function FileUploader({
           style={{ fontSize: '0.8125rem' }}
         >
           <CheckCircle2 size={13} style={{ color: 'var(--positive)' }} />
-          {existingReportsCount > 0 ? 'Load Single Demo' : 'Load Demo Report'}
-        </button>
-
-        <button
-          type="button"
-          id="load-batch-demo-btn"
-          onClick={() => {
-            onLoadBatchDemo?.(timezoneOffset);
-            if (isModal) onClose?.();
-          }}
-          disabled={isLoading}
-          className="btn"
-          style={{ fontSize: '0.8125rem' }}
-          title="Load 5 MT5 test reports simultaneously"
-        >
-          <Layers size={13} style={{ color: 'var(--primary-hover)' }} />
-          Load 5 Reports (Batch Demo)
+          {existingReportsCount > 0 ? 'Load Demo Report into Workspace' : 'Load Demo Report'}
         </button>
 
         {isModal && (
