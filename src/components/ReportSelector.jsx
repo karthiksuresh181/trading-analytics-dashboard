@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { Layers, ChevronDown, Check, Trash2, Plus, Search, AlertCircle } from 'lucide-react';
+import { Layers, ChevronDown, Check, Trash2, Plus, Search, AlertCircle, Briefcase } from 'lucide-react';
 
 export default function ReportSelector({
   reports = [],
   activeReportId,
+  scope = 'report',
+  uniqueAccountsCount = 0,
   onSelectReport,
+  onSelectPortfolio,
   onRemoveReport,
   onOpenAddReports,
   onConfirmRemoveAll,
@@ -14,6 +17,8 @@ export default function ReportSelector({
   const dropdownRef = useRef(null);
 
   const activeReport = reports.find(r => r.id === activeReportId) || reports[0] || null;
+  const isPortfolioActive = scope === 'portfolio';
+  const showPortfolioOption = reports.length >= 2;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -50,10 +55,15 @@ export default function ReportSelector({
     return acc.includes(q) || name.includes(q) || file.includes(q);
   });
 
-  if (!activeReport) return null;
+  if (!activeReport && !isPortfolioActive) return null;
 
-  const activeDisplayTitle = activeReport.meta?.account || activeReport.meta?.name || activeReport.fileName;
-  const activeDisplaySub = activeReport.meta?.name && activeReport.meta?.account ? activeReport.meta.name : activeReport.fileName;
+  const activeDisplayTitle = isPortfolioActive
+    ? 'All Accounts'
+    : (activeReport?.meta?.account || activeReport?.meta?.name || activeReport?.fileName || 'Report');
+
+  const activeDisplaySub = isPortfolioActive
+    ? `${uniqueAccountsCount || reports.length} accounts • ${reports.length} reports`
+    : (activeReport?.meta?.name && activeReport?.meta?.account ? activeReport.meta.name : activeReport?.fileName);
 
   return (
     <div className="report-selector-container" ref={dropdownRef}>
@@ -61,23 +71,26 @@ export default function ReportSelector({
       <button
         type="button"
         id="report-selector-trigger"
-        className={`report-selector-btn${isOpen ? ' active' : ''}`}
+        className={`report-selector-btn${isOpen ? ' active' : ''}${isPortfolioActive ? ' is-portfolio-active' : ''}`}
         onClick={() => setIsOpen(prev => !prev)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        title="Switch active MT5 report"
+        title={isPortfolioActive ? 'Portfolio view active (All Accounts)' : 'Switch active MT5 report or switch to Portfolio'}
       >
-        <div className="report-selector-icon">
-          <Layers size={13} />
+        <div className={`report-selector-icon${isPortfolioActive ? ' icon-portfolio' : ''}`}>
+          {isPortfolioActive ? <Briefcase size={13} /> : <Layers size={13} />}
         </div>
         <div className="report-selector-text">
           <span className="report-selector-account">{activeDisplayTitle}</span>
-          {activeDisplaySub && activeDisplaySub !== activeDisplayTitle && (
+          {activeDisplaySub && (
             <span className="report-selector-sub">{activeDisplaySub}</span>
           )}
         </div>
-        <span className="report-selector-badge" title={`${reports.length} report${reports.length > 1 ? 's' : ''} loaded`}>
-          {reports.length}
+        <span
+          className={`report-selector-badge${isPortfolioActive ? ' badge-portfolio' : ''}`}
+          title={isPortfolioActive ? 'Portfolio Scope' : `${reports.length} report${reports.length > 1 ? 's' : ''} loaded`}
+        >
+          {isPortfolioActive ? 'Portfolio' : reports.length}
         </span>
         <ChevronDown size={13} className={`report-selector-chevron${isOpen ? ' rotated' : ''}`} />
       </button>
@@ -87,7 +100,7 @@ export default function ReportSelector({
         <div className="report-selector-popover fade-up" role="listbox">
           <div className="report-popover-header">
             <div>
-              <div className="report-popover-title">Active Report</div>
+              <div className="report-popover-title">Analytical Scope</div>
               <div className="report-popover-sub">
                 {reports.length} report{reports.length > 1 ? 's' : ''} loaded in workspace
               </div>
@@ -121,8 +134,51 @@ export default function ReportSelector({
             </div>
           )}
 
-          {/* Scrollable Reports List */}
+          {/* Scrollable Scope & Reports List */}
           <div className="report-popover-list">
+
+            {/* ── PORTFOLIO SECTION (Req #34: Only when >= 2 reports) ── */}
+            {showPortfolioOption && (
+              <>
+                <div className="report-popover-section-label">PORTFOLIO</div>
+                <div
+                  id="portfolio-scope-selector-item"
+                  className={`report-list-item portfolio-list-item${isPortfolioActive ? ' selected' : ''}`}
+                  onClick={() => {
+                    onSelectPortfolio();
+                    setIsOpen(false);
+                  }}
+                  role="option"
+                  aria-selected={isPortfolioActive}
+                >
+                  <div className="report-item-check">
+                    {isPortfolioActive ? (
+                      <Check size={13} style={{ color: 'var(--primary-hover)' }} />
+                    ) : (
+                      <div className="report-item-dot" />
+                    )}
+                  </div>
+
+                  <div className="report-item-info">
+                    <div className="report-item-title-row">
+                      <span className="report-item-title font-semibold">All Accounts</span>
+                      {isPortfolioActive && <span className="report-item-active-tag portfolio-tag">Active</span>}
+                    </div>
+                    <div className="report-item-details">
+                      <span>{uniqueAccountsCount || reports.length} accounts</span>
+                      <span>•</span>
+                      <span>{reports.length} reports</span>
+                      <span>•</span>
+                      <span>Combined Ledger</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="report-popover-divider" />
+                <div className="report-popover-section-label">REPORTS</div>
+              </>
+            )}
+
             {filteredReports.length === 0 ? (
               <div className="report-popover-empty">
                 <AlertCircle size={14} style={{ color: 'var(--text-muted)' }} />
@@ -130,13 +186,14 @@ export default function ReportSelector({
               </div>
             ) : (
               filteredReports.map((report) => {
-                const isSelected = report.id === activeReportId;
+                const isSelected = !isPortfolioActive && report.id === activeReportId;
                 const title = report.meta?.account || report.meta?.name || report.fileName;
                 const sub = report.meta?.name && report.meta?.account ? report.meta.name : report.fileName;
 
                 return (
                   <div
                     key={report.id}
+                    id={`report-item-${report.id}`}
                     className={`report-list-item${isSelected ? ' selected' : ''}`}
                     onClick={() => {
                       onSelectReport(report.id);
